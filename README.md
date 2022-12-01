@@ -3485,5 +3485,251 @@ public class RoleController extends BaseController {
 
 
 
+## 2.5前端数据校验
+
+前端数据校验使用jQuery Validate 插件
+
+jQuery Validate 插件捆绑了一套有用的验证方法，包括 URL 和电子邮件验证，同时提供了一个用来编写用户自定义方法的 API。
+
+参考文档：https://www.runoob.com/jquery/jquery-plugin-validate.html
+
+### 2.5.1默认校验规则
+
+| 序号 | 规则               | 描述                                                         |
+| :--- | :----------------- | :----------------------------------------------------------- |
+| 1    | required:true      | 必须输入的字段。                                             |
+| 2    | remote:"check.php" | 使用 ajax 方法调用 check.php 验证输入值。                    |
+| 3    | email:true         | 必须输入正确格式的电子邮件。                                 |
+| 4    | url:true           | 必须输入正确格式的网址。                                     |
+| 5    | date:true          | 必须输入正确格式的日期。日期校验 ie6 出错，慎用。            |
+| 6    | dateISO:true       | 必须输入正确格式的日期（ISO），例如：2009-06-23，1998/01/22。只验证格式，不验证有效性。 |
+| 7    | number:true        | 必须输入合法的数字（负数，小数）。                           |
+| 8    | digits:true        | 必须输入整数。                                               |
+| 9    | creditcard:        | 必须输入合法的信用卡号。                                     |
+| 10   | equalTo:"#field"   | 输入值必须和 #field 相同。                                   |
+| 11   | accept:            | 输入拥有合法后缀名的字符串（上传文件的后缀）。               |
+| 12   | maxlength:5        | 输入长度最多是 5 的字符串（汉字算一个字符）。                |
+| 13   | minlength:10       | 输入长度最小是 10 的字符串（汉字算一个字符）。               |
+| 14   | rangelength:[5,10] | 输入长度必须介于 5 和 10 之间的字符串（汉字算一个字符）。    |
+| 15   | range:[5,10]       | 输入值必须介于 5 和 10 之间。                                |
+| 16   | max:5              | 输入值不能大于 5。                                           |
+| 17   | min:10             | 输入值不能小于 10。                                          |
+
+
+
+### 2.5.2使用插件添加校验
+
+#### 2.5.2.1导入插件js资源
+
+head.html文件引入js库
+
+```html
+<!--jQuery Validate 插件-->
+<script th:src="@{/static/js/plugins/validate/jquery.validate.min.js}" type="text/javascript" ></script>
+<script th:src="@{/static/js/plugins/validate/messages_zh.min.js}" type="text/javascript" ></script>
+```
+
+
+
+#### 2.5.2.2新增操作添加校验
+
+向create.html添加校验代码：
+
+```html
+<script type="text/javascript">
+    $(function(){//window.onload
+        //为id值为ec的表单添加校验
+        $('#ec').validate({
+            //规则：roleName和description不能为空
+            rules:{
+                roleName:"required",
+                description:"required"
+            },
+            //错误的提示信息：如果为空则提示信息
+            messages:{
+                roleName:"角色必须输入",
+                description:"描述必须输入"
+            },
+            //拦截表单的提交，如果有不符合规则的内容，则不会提交，如果提交的话，还会将确定按钮设置为禁用
+            submitHandler: function(form) {
+                $(form).find(":submit").attr("disabled", true).text("正在提交...");
+                form.submit();
+            }
+        });
+    });
+</script>
+```
+
+create.html完整的校验代码：
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head::head"></head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/role/save}" method="post" class="form-horizontal">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">角色名称：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="roleName" id="roleName" value="" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">角色编码：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="roleCode" id="roleCode" value="" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">描述：</label>
+                    <div class="col-sm-10">
+                        <textarea name="description" id="description" class="form-control" style="width:100%;height: 50px;" ></textarea>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group posf">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" value="取消" onclick="opt.closeWin()">取消</button></div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+<script type="text/javascript">
+    $(function(){//window.onload
+        //为id值为ec的表单添加校验
+        $('#ec').validate({
+            //规则：roleName和description不能为空
+            rules:{
+                roleName:"required",
+                description:"required"
+            },
+            //错误的提示信息：如果为空则提示信息
+            messages:{
+                roleName:"角色必须输入",
+                description:"描述必须输入"
+            },
+            //拦截表单的提交，如果有不符合规则的内容，则不会提交，如果提交的话，还会将确定按钮设置为禁用
+            submitHandler: function(form) {
+                $(form).find(":submit").attr("disabled", true).text("正在提交...");
+                form.submit();
+            }
+        });
+    });
+</script>
+</html>
+```
+
+
+
+#### 2.5.2.3修改操作添加校验
+
+向edit.html添加校验代码：
+
+```html
+<script type="text/javascript">
+    $(function(){//window.onload
+        //为id值为ec的表单添加校验
+        $('#ec').validate({
+            //规则：roleName和description不能为空
+            rules:{
+                roleName:"required",
+                description:"required"
+            },
+            //错误的提示信息：如果为空则提示信息
+            messages:{
+                roleName:"角色必须输入",
+                description:"描述必须输入"
+            },
+            //拦截表单的提交，如果有不符合规则的内容，则不会提交，如果提交的话，还会将确定按钮设置为禁用
+            submitHandler: function(form) {
+                $(form).find(":submit").attr("disabled", true).text("正在提交...");
+                form.submit();
+            }
+        });
+    });
+</script>
+```
+
+edit.html完整的校验代码：
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head::head"></head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/role/update}" method="post" class="form-horizontal" >
+                <!--将roleId作为隐藏域-->
+                <input type="hidden" name="id" th:value="${role.id}">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">角色：</label>
+
+                    <div class="col-sm-10">
+                        <input type="text" name="roleName" id="roleName" th:value="${role.roleName}" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">角色编码：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="roleCode" id="roleCode" th:value="${role.roleCode}" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">描述：</label>
+                    <div class="col-sm-10">
+                        <textarea name="description" id="description" class="form-control" style="width:100%;height: 50px;" th:text="${role.description}" ></textarea>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group posf">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button></div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</div>
+</body>
+<script type="text/javascript">
+    $(function(){//window.onload
+        //为id值为ec的表单添加校验
+        $('#ec').validate({
+            //规则：roleName和description不能为空
+            rules:{
+                roleName:"required",
+                description:"required"
+            },
+            //错误的提示信息：如果为空则提示信息
+            messages:{
+                roleName:"角色必须输入",
+                description:"描述必须输入"
+            },
+            //拦截表单的提交，如果有不符合规则的内容，则不会提交，如果提交的话，还会将确定按钮设置为禁用
+            submitHandler: function(form) {
+                $(form).find(":submit").attr("disabled", true).text("正在提交...");
+                form.submit();
+            }
+        });
+    });
+</script>
+</html>
+```
+
+
+
 
 
