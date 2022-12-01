@@ -1,10 +1,7 @@
 package com.atguigu.controller;
 
 import com.atguigu.entity.*;
-import com.atguigu.service.CommunityService;
-import com.atguigu.service.DictService;
-import com.atguigu.service.HouseImageService;
-import com.atguigu.service.HouseService;
+import com.atguigu.service.*;
 import com.github.pagehelper.PageInfo;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Controller;
@@ -35,6 +32,9 @@ public class HouseController extends BaseController {
 
     @DubboReference
     private HouseImageService houseImageService;
+
+    @DubboReference
+    private HouseBrokerService houseBrokerService;
 
     private final static String LIST_ACTION = "redirect:/house";
     private final static String PAGE_INDEX = "house/index";
@@ -184,6 +184,10 @@ public class HouseController extends BaseController {
         //房产图片通过house_id+type2查询
         List<HouseImage> houseImage2List = houseImageService.findImageByHouseIdAndType(id,2);
         map.put("houseImage2List",houseImage2List);
+
+        //详情数据5：房源的经纪人信息，表：hse_house_broker是中间表，存的房源和用户多对多关系
+        List<HouseBroker> houseBrokerList = houseBrokerService.findBrokerByHouseId(id);
+        map.put("houseBrokerList",houseBrokerList);
 
         return PAGE_SHOW;
     }

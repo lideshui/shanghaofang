@@ -9053,3 +9053,373 @@ HouseController添加内容
     }
 ```
 
+
+
+## 5.5房源详情之经纪人
+
+房源经纪人就是用户（acl_admin），一个房源（hse_house）可以有多个经纪人，一个经纪人可以有多个房源，所以需要中间表（hse_house_broker）
+
+### 5.5.1dubobo服务端接口
+
+HouseBrokerService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.Admin;
+import com.atguigu.entity.HouseBroker;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.HouseBrokerService
+ */
+public interface HouseBrokerService extends BaseService<HouseBroker>{
+
+    /**
+     * 两表联查，根据房源id返回查询的房源的经纪人信息和房源信息
+     */
+    List<HouseBroker> findBrokerByHouseId(Long houseId);
+
+    /**
+     * 查询不是该房源经纪人的其他所有经纪人，为房源添加新的经纪人
+     */
+    List<Admin> findHouseOtherBroker(Long houseId);
+}
+```
+
+
+
+### 5.5.2dubobo服务端提供者
+
+#### 5.5.2.1dao层
+
+HouseBrokerDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.Admin;
+import com.atguigu.entity.HouseBroker;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.HouseBrokerDao
+ */
+public interface HouseBrokerDao extends BaseDao<HouseBroker> {
+
+    /**
+     * 两表联查，根据房源id返回查询的房源的经纪人信息和房源信息
+     */
+    List<HouseBroker> findBrokerByHouseId(Long houseId);
+
+
+    /**
+     * 查询不是该房源经纪人的其他所有经纪人，为房源添加新的经纪人
+     */
+    List<Admin> findHouseOtherBroker(List<Long> ids);
+
+}
+```
+
+HouseBrokerMapper
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成RoleDao的全类名-->
+<mapper namespace="com.atguigu.dao.HouseBrokerDao">
+
+    <!--两表联查，根据房源id查询该房源的经纪人信息，全部房源信息+用户信息的头像url和姓名-->
+    <select id="findBrokerByHouseId" resultType="houseBroker">
+        SELECT hhb.*,aa.name brokerName,aa.head_url brokerHeadUrl
+        FROM hse_house_broker hhb
+        JOIN acl_admin aa
+        ON hhb.broker_id=aa.id
+        WHERE hhb.house_id=#{houseId}
+        AND hhb.is_deleted=0
+        AND aa.is_deleted=0
+    </select>
+
+    <!--查询不是该房源经纪人的其他所有经纪人，为房源添加新的经纪人-->
+    <!--注意：ids这个集合有可能是没有长度的，因为这个房源最开始一个经纪人都没有⚠️-->
+    <select id="findHouseOtherBroker" resultType="admin">
+        SELECT * FROM acl_admin
+        <where>
+            <if test="list.size>0">
+                id not in
+                <!--循环查询参数，去掉所有已有的经纪人-->
+                <foreach collection="list" open="(" close=")" separator="," item="id">
+                    #{id}
+                </foreach>
+            </if>
+            and is_deleted=0
+        </where>
+    </select>
+
+    <!--新增房源的经纪人-->
+    <insert id="insert">
+        insert into hse_house_broker(house_id,broker_id)
+        values(#{houseId},#{brokerId})
+    </insert>
+
+    <!--删除房源的经纪人-->
+    <update id="delete">
+        update hse_house_broker set is_deleted=1 where id=#{id}
+    </update>
+</mapper>
+```
+
+
+
+#### 5.5.2.2service层
+
+HouseBrokerServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.dao.HouseBrokerDao;
+import com.atguigu.entity.Admin;
+import com.atguigu.entity.HouseBroker;
+import com.atguigu.service.HouseBrokerService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.HouseBrokerServiceImpl
+ */
+@DubboService
+public class HouseBrokerServiceImpl extends BaseServiceImpl<HouseBroker> implements HouseBrokerService {
+
+    @Autowired
+    private HouseBrokerDao houseBrokerDao;
+
+    @Override
+    public BaseDao<HouseBroker> getEntityDao() {
+        return houseBrokerDao;
+    }
+
+
+    /**
+     * 两表联查，根据房源id返回查询的房源的经纪人信息和房源信息
+     */
+    @Override
+    public List<HouseBroker> findBrokerByHouseId(Long houseId) {
+        return houseBrokerDao.findBrokerByHouseId(houseId);
+    }
+
+
+    /**
+     * 查询房源经纪人以外的其他所有经纪人，为房源添加新的经纪人
+     */
+    @Override
+    public List<Admin> findHouseOtherBroker(Long houseId) {
+
+        //第一步：查询到当前房源的所有经纪人信息
+        List<HouseBroker> brokerList = houseBrokerDao.findBrokerByHouseId(houseId);
+
+        //通过循环取出经纪人的id，放到ids集合中
+        List<Long> ids=new ArrayList<>();
+        for (HouseBroker houseBroker : brokerList) {
+            ids.add(houseBroker.getBrokerId());
+        }
+
+        //第二步：查询admin表格，将上面的经纪人排除掉(暂时写在houseBrokerDao)
+        //对admin表格的查询，按理说应该调用AdminDao,但是AdminDao在acl内，无法调用，到微服务架构解决
+        //注意：service和dao会分开，就可以调用，SOA架构，粒度比较大，容易出现重复问题⚠️
+        return houseBrokerDao.findHouseOtherBroker(ids);
+    }
+}
+```
+
+
+
+### 5.5.3dubobo服务端消费者
+
+HouseControllert添加内容
+
+```java
+    @DubboReference
+    private HouseBrokerService houseBrokerService;
+
+    /**
+     * 页面详情
+     */
+    @RequestMapping("/show/{id}")
+    public String show(Map map,@PathVariable Long id) {
+        //详情数据1：房源详细信息
+        //ServiceImpl实现类中重写getById，有些属性只有id不满足要求，需要从字典中获取name⚠️
+        House house = houseService.getById(id);
+        map.put("house",house);
+
+        //详情数据2：房源小区信息
+        //ServiceImpl实现类中重写getById，有些属性只有id不满足要求，需要从字典中获取name⚠️
+        Community community = communityService.getById(house.getCommunityId());
+        map.put("community",community);
+
+        //详情数据3：房源的房源图片，表：hse_house_image
+        //房源和房产图片都在hse_house_image一张表上，通过type区分，1房源2房产
+        //房源图片通过house_id+type1查询
+        List<HouseImage> houseImage1List = houseImageService.findImageByHouseIdAndType(id,1);
+        map.put("houseImage1List",houseImage1List);
+
+
+        //详情数据4：房源的房产图片，表：hse_house_image
+        //房产图片通过house_id+type2查询
+        List<HouseImage> houseImage2List = houseImageService.findImageByHouseIdAndType(id,2);
+        map.put("houseImage2List",houseImage2List);
+
+        //详情数据5：房源的经纪人信息，表：hse_house_broker是中间表，存的房源和用户多对多关系
+        List<HouseBroker> houseBrokerList = houseBrokerService.findBrokerByHouseId(id);
+        map.put("houseBrokerList",houseBrokerList);
+
+        return PAGE_SHOW;
+    }
+```
+
+HouseBrokerController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.Admin;
+import com.atguigu.entity.HouseBroker;
+import com.atguigu.service.HouseBrokerService;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.HouseBrokerController
+ */
+@Controller
+@RequestMapping("/houseBroker")
+public class HouseBrokerController {
+
+    @DubboReference
+    private HouseBrokerService houseBrokerService;
+
+
+    private final static String LIST_ACTION = "redirect:/house/show/";
+    private final static String PAGE_CREATE = "houseBroker/create";
+    private final static String PAGE_SUCCESS = "common/success";
+
+
+    /**
+     * 处理/create/id请求，进入新增页面，并传入当前房源的id
+     */
+    @RequestMapping("/create/{houseId}")
+    public String create(Map map, @PathVariable Long houseId) {
+        //需要将除当前房源经纪人以外的其他经纪人添加到下拉列表
+        List<Admin> adminList = houseBrokerService.findHouseOtherBroker(houseId);
+        map.put("adminList",adminList);
+        //传入当前房源id
+        map.put("houseId",houseId);
+        return PAGE_CREATE;
+    }
+
+
+    /**
+     * 处理/save，保存新增
+     */
+    @RequestMapping("/save")
+    public String save(HouseBroker houseBroker){
+        houseBrokerService.insert(houseBroker);
+        return PAGE_SUCCESS;
+    }
+
+
+    /**
+     * 处理/delete/id请求，删除当前房源的经纪人
+     * 删除之后，应该重定向到当前房源的show页面
+     */
+    @RequestMapping("/delete/{houseId}/{houseBrokerId}")
+    public String delete(@PathVariable Long houseId,@PathVariable Long houseBrokerId){
+        //根据houseBrokerId
+        houseBrokerService.delete(houseBrokerId);
+        //删除完后重定向到房源的详情页面
+        return LIST_ACTION + houseId;
+    }
+
+
+}
+```
+
+
+
+### 5.5.4准备web资源
+
+#### 5.5.4.1创建create页面
+
+houseBroker/create.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/houseBroker/save}" method="post" class="form-horizontal">
+                <input type="hidden" name="houseId" th:value="${houseId}"/>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">经纪人：</label>
+                    <div class="col-sm-10">
+                        <select name="brokerId" id="brokerId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${adminList}" th:text="${item.name}" th:value="${item.id}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 5.5.4.2添加新建js
+
+在房源详情页house/show.html中添加
+
+```html
+<script type="text/javascript">
+    $(function(){
+        $(".createBroker").on("click",function () {
+            opt.openWin('/houseBroker/create/[[${house.id}]]','新增经纪人',630,300)
+        });
+        $(".deleteBroker").on("click",function(){
+            var id = $(this).attr("data-id");
+            opt.confirm('/houseBroker/delete/[[${house.id}]]/'+id);
+        });
+    });
+</script>
+```
+
