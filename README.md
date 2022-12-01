@@ -3731,5 +3731,596 @@ edit.html完整的校验代码：
 
 
 
+## 2.6用户管理
+
+使用封装代码，实现用户管理的增删改查
+
+### 2.6.1用户管理dao层
+
+#### 2.6.1.1dao层接口文件
+
+AdminDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.Admin;
+
+
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.RoleDao
+ */
+public interface AdminDao extends BaseDao<Admin> {
+}
+```
+
+
+
+#### 2.6.1.2dao层映射文件
+
+AdminDao.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.AdminDao">
+
+    <!-- 用于select查询公用抽取的列 -->
+    <sql id="columns">
+        select id,username,password,name,phone,head_url,description,create_time,update_time,is_deleted from acl_admin
+    </sql>
+
+    <!--搜索结果分页显示-->
+    <select id="findPage" resultType="admin">
+        <include refid="columns"></include>
+        <where>
+            <if test="username != null and username != ''">
+                and username like CONCAT('%',#{username},'%')
+            </if>
+            <if test="name != null and name != ''">
+                and name like CONCAT('%',#{name},'%')
+            </if>
+            <if test="phone != null and phone != ''">
+                and phone like CONCAT('%',#{phone},'%')
+            </if>
+            <if test="createTimeBegin != null and createTimeBegin != ''">
+                and create_time >= #{createTimeBegin}
+            </if>
+            <if test="createTimeEnd != null and createTimeEnd != ''">
+                and create_time &lt;= #{createTimeEnd}
+            </if>
+            and is_deleted = 0
+            order by id desc
+        </where>
+    </select>
+
+    <!--查询单个-->
+    <select id="getById" resultType="admin">
+        <include refid="columns"/>
+        where
+        id = #{id}
+    </select>
+
+    <!--新增-->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into acl_admin (
+        id ,
+        username ,
+        password ,
+        name ,
+        phone ,
+        head_url ,
+        description
+        ) values (
+        #{id} ,
+        #{username} ,
+        #{password} ,
+        #{name} ,
+        #{phone} ,
+        #{headUrl} ,
+        #{description}
+        )
+    </insert>
+
+    <!--修改方式一：可赋值为null
+    <update id="update">
+        update acl_admin set
+        name=#{name},phone=#{phone},head_url=#{headUrl}
+        where id=#{id}
+    </update>
+    -->
+
+    <!--修改方式二：使用set标签，赋为null或空串时不修改原来的数据-->
+    <update id="update">
+        update acl_admin
+        <set>
+            <if test="name != null and name != ''">
+                name = #{name},
+            </if>
+            <if test="phone != null and phone != ''">
+                phone = #{phone},
+            </if>
+            <if test="headUrl != null and headUrl != ''">
+                head_url = #{headUrl},
+            </if>
+        </set>
+        where id=#{id}
+    </update>
+
+
+    <!--删除-->
+    <update id="delete">
+        update acl_admin set
+        is_deleted = 1
+        where
+        id = #{id}
+    </update>
+
+</mapper>
+```
+
+
+
+### 2.6.2用户管理service层
+
+#### 2.6.2.1service层接口
+
+AdminService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.Admin;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.RoleService
+ */
+public interface AdminService extends BaseService<Admin> {
+}
+```
+
+
+
+#### 2.6.2.2service层接口实现类
+
+AdminServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.AdminDao;
+import com.atguigu.dao.BaseDao;
+import com.atguigu.entity.Admin;
+import com.atguigu.service.AdminService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.RoleServiceImpl
+ */
+@Service
+public class AdminServiceImpl extends BaseServiceImpl<Admin> implements AdminService {
+    @Autowired
+    private AdminDao adminDao;
+
+    @Override
+    public BaseDao<Admin> getEntityDao() {
+        return adminDao;
+    }
+
+}
+```
+
+
+
+### 2.6.3用户管理controller层
+
+AdminController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.Admin;
+import com.atguigu.service.AdminService;
+import com.github.pagehelper.PageInfo;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import javax.servlet.http.HttpServletRequest;
+import java.util.Map;
+
+
+/**
+ * TODD
+ * @AllClassName: com.atguigu.controller.AdminController
+ */
+@Controller
+@RequestMapping("/admin")
+public class AdminController extends BaseController {
+
+    private final static String PAGE_INDEX = "admin/index";
+    private final static String PAGE_CREATE = "admin/create";
+    private final static String PAGE_EDIT = "admin/edit";
+    private final static String PAGE_SUCCESS = "common/success";
+    private final static String LIST_ACTION = "redirect:/admin";
+
+    @Autowired
+    private AdminService adminService;
+
+    /**
+     *  处理/请求，跳转到index页，搜索处理、分页处理
+     */
+    @RequestMapping
+    public String index(Map map, HttpServletRequest request) {
+        //处理请求参数
+        Map<String,Object> filters = getFilters(request);
+        //传递参数到service层，拿到查询结果并构建分页对象
+        PageInfo<Admin> page = adminService.findPage(filters);
+
+        //将PageInfo分页对象放到请求域，里面有分页信息和搜索结果
+        map.put("page", page);
+        //搜索内容的回显
+        map.put("filters", filters);
+
+        return PAGE_INDEX;
+    }
+
+    /**
+     * 处理/create请求，跳转到添加资源页面
+     */
+    @RequestMapping("/create")
+    public String create() {
+        return PAGE_CREATE;
+    }
+
+    /**
+     * 处理/save请求，执行添加资源操作
+     */
+    @RequestMapping("/save")
+    public String save(Admin admin) {
+        adminService.insert(admin);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * 处理/edit/id请求，跳转到修改资源页面
+     */
+    @RequestMapping("/edit/{id}")
+    public String edit(
+            @PathVariable Long id,
+            Map map
+    ) {
+        Admin admin = adminService.getById(id);
+        map.put("admin",admin);
+        return PAGE_EDIT;
+    }
+
+    /**
+     * 处理/update请求，执行资源修改操作
+     */
+    @RequestMapping(value="/update")
+    public String update(Admin admin) {
+        adminService.update(admin);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * 处理/delete/id请求，执行资源删除操作
+     */
+    @RequestMapping("/delete/{id}")
+    public String delete(@PathVariable Long id) {
+        adminService.delete(id);
+        //不是在iframe窗体内执行操作，直接重定向即可
+        return LIST_ACTION;
+    }
+
+}
+```
+
+
+
+### 2.6.4用户管理前端html页面
+
+在frame/index左侧导航栏页面修改内容
+
+```html
+<li>
+    <a class="J_menuItem" th:href="@{/admin}" data-index="0">用户管理</a>
+</li>
+```
+
+在/pages/admin下创建CURD页面
+
+#### 2.6.4.1查询index页面
+
+index.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:include="common/head :: head"></head>
+
+<body class="gray-bg">
+<form id="ec" th:action="@{/admin}" method="post">
+    <div class="wrapper wrapper-content animated fadeInRight">
+
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="ibox float-e-margins">
+                    <div class="ibox-content">
+                        <table class="table form-table margin-bottom10">
+                            <tr>
+                                <td>
+                                    <input type="text" name="username" th:value="${#maps.containsKey(filters, 'username')} ? ${filters.username} : ''" placeholder="用户名" class="input-sm form-control"/>
+                                </td>
+                                <td>
+                                    <input type="text" name="name" th:value="${#maps.containsKey(filters, 'name')} ? ${filters.name} : ''" placeholder="用户姓名" class="input-sm form-control"/>
+                                </td>
+                                <td>
+                                    <input type="text" name="phone" th:value="${#maps.containsKey(filters, 'phone')} ? ${filters.phone} : ''" placeholder="手机号码" class="input-sm form-control"/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <input type="datetime-local" name="createTimeBegin" th:value="${#maps.containsKey(filters, 'createTimeBegin')} ? ${filters.createTimeBegin} : ''" placeholder="开始日期：YYYY-MM-DD" class="input-sm form-control"/>
+                                </td>
+                                <td>
+                                    <input type="datetime-local" name="createTimeEnd" th:value="${#maps.containsKey(filters, 'createTimeEnd')} ? ${filters.createTimeEnd} : ''" placeholder="截止日期：YYYY-MM-DD" class="input-sm form-control"/>
+                                </td>
+                                <td>
+                                </td>
+                            </tr>
+                        </table>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="javascript:document.forms.ec.pageNum.value=1;document.forms.ec.submit();">搜索</button>
+                            <button type="button" class="btn btn-sm btn-primary create"> 新增</button>
+                            <button type="button" id="loading-example-btn" onclick="javascript:window.location.reload();" class="btn btn-white btn-sm">刷新</button>
+                        </div>
+                        <table class="table table-striped table-bordered table-hover dataTables-example">
+                            <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>头像</th>
+                                <th>用户姓名</th>
+                                <th>用户账号</th>
+                                <th>手机号</th>
+                                <th>创建时间</th>
+                                <th>操作 </th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr class="gradeX" th:each="item,it: ${page.list}">
+                                <td class="text-center" th:text="${it.count}">11</td>
+                                <td>
+                                    <img th:src="${item.headUrl}" style="width: 60px; height: 60px;">
+                                </td>
+                                <td th:text="${item.name}">22</td>
+                                <td th:text="${item.username}">33</td>
+                                <td th:text="${item.phone}">22</td>
+                                <td th:text="${#dates.format(item.createTime,'yyyy-MM-dd HH:mm:ss')}" >33</td>
+                                <td class="text-center">
+                                    <a class="edit" th:attr="data-id=${item.id}">修改</a>
+                                    <a class="delete" th:attr="data-id=${item.id}">删除</a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="row" th:include="common/pagination :: pagination"></div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+<script th:inline="javascript">
+    $(function(){
+        $(".create").on("click",function () {
+            opt.openWin('/admin/create','新增',630,430)
+        });
+        $(".edit").on("click",function () {
+            var id = $(this).attr("data-id");
+            opt.openWin('/admin/edit/' + id,'修改',580,430);
+        });
+        $(".delete").on("click",function(){
+            var id = $(this).attr("data-id");
+            opt.confirm('/admin/delete/'+id);
+        });
+    });
+</script>
+</body>
+</html>
+```
+
+
+
+#### 2.6.4.2新增create页面
+
+create.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<script type="text/javascript">
+    $(function(){
+        $('#ec').validate({
+            rules:{
+                name:"required",
+                username:{
+                    rangelength:[3,15]
+                },
+                phone:{
+                    required:true,
+                    rangelength:[11,11]
+                },
+                password:{
+                    required:true,
+                    rangelength:[6,15]
+                },
+                confirmPassword:{
+                    equalTo:"#password"
+                }
+            },
+            messages:{
+                name:"真实姓名必须输入",
+                username:{
+                    rangelength:"用户账号3到15位"
+                },
+                phone:{
+                    required: "手机号码必须输入",
+                    rangelength:"手机号码格式不正确"
+                },
+                password:{
+                    required: "密码必须输入",
+                    rangelength:"密码6到15位"
+                },
+                confirmPassword:{
+                    equalTo:"密码与确认密码不一致"
+                }
+            },
+            submitHandler: function(form) {
+                $(form).find(":submit").attr("disabled", true).text("正在提交...");
+                form.submit();
+            }
+        });
+    });
+</script>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/admin/save}" method="post" class="form-horizontal">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">真实姓名：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="name" id="name" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">用户账号：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="username" id="username" class="form-control"/>
+                        <label for="username" class="error" id="usernameLabel"></label>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">手机号码：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="phone" id="phone" maxlength="11" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">密码：</label>
+                    <div class="col-sm-10">
+                        <input type="password" name="password" id="password" maxlength="15" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">确认密码：</label>
+                    <div class="col-sm-10">
+                        <input type="password" name="confirmPassword" id="confirmPassword" maxlength="15" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 2.6.4.3修改edit页面
+
+edit.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<script type="text/javascript">
+    $(function(){
+        $('#ec').validate({
+            rules:{
+                name:"required",
+                phone:{
+                    required:true,
+                    rangelength:[11,11]
+                }
+            },
+            messages:{
+                name:"真实姓名必须输入",
+                phone:{
+                    required: "手机号码必须输入",
+                    rangelength:"手机号码格式不正确"
+                }
+            },
+            submitHandler: function(form) {
+                $(form).find(":submit").attr("disabled", true).text("正在提交...");
+                form.submit();
+            }
+        });
+    });
+</script>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/admin/update}" method="post" class="form-horizontal">
+                <input type="hidden" name="id" th:value="${admin.id}">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">真实姓名：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="name" id="name" th:value="${admin.name}" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">手机号码：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="phone" id="phone" th:value="${admin.phone }" maxlength="11" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group posf">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
 
 
