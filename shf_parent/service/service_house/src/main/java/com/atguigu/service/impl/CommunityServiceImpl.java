@@ -11,6 +11,7 @@ import com.github.pagehelper.PageInfo;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
@@ -65,5 +66,20 @@ public class CommunityServiceImpl extends BaseServiceImpl<Community> implements 
     @Override
     public List<Community> findAll() {
         return communityDao.findAll();
+    }
+
+    /**
+     * 重写getById，通过字典和id，为区域和版快信息赋值
+     */
+    @Override
+    public Community getById(Serializable id) {
+        Community community = communityDao.getById(id);
+
+        //通过字典为区域赋值
+        community.setPlateName(dictDao.getNameById(community.getPlateId()));
+        //通过字典为区域赋值
+        community.setAreaName(dictDao.getNameById(community.getAreaId()));
+
+        return community;
     }
 }

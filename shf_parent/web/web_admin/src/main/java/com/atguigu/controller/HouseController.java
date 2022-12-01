@@ -3,6 +3,7 @@ package com.atguigu.controller;
 import com.atguigu.entity.*;
 import com.atguigu.service.CommunityService;
 import com.atguigu.service.DictService;
+import com.atguigu.service.HouseImageService;
 import com.atguigu.service.HouseService;
 import com.github.pagehelper.PageInfo;
 import org.apache.dubbo.config.annotation.DubboReference;
@@ -31,6 +32,9 @@ public class HouseController extends BaseController {
 
     @DubboReference
     private CommunityService communityService;
+
+    @DubboReference
+    private HouseImageService houseImageService;
 
     private final static String LIST_ACTION = "redirect:/house";
     private final static String PAGE_INDEX = "house/index";
@@ -160,14 +164,26 @@ public class HouseController extends BaseController {
      */
     @RequestMapping("/show/{id}")
     public String show(Map map,@PathVariable Long id) {
-        //房源详细信息
+        //详情数据1：房源详细信息
         //ServiceImpl实现类中重写getById，有些属性只有id不满足要求，需要从字典中获取name⚠️
         House house = houseService.getById(id);
         map.put("house",house);
 
-        //房源小区信息
+        //详情数据2：房源小区信息
+        //ServiceImpl实现类中重写getById，有些属性只有id不满足要求，需要从字典中获取name⚠️
         Community community = communityService.getById(house.getCommunityId());
         map.put("community",community);
+
+        //详情数据3：房源的房源图片，表：hse_house_image
+        //房源和房产图片都在hse_house_image一张表上，通过type区分，1房源2房产
+        //房源图片通过house_id+type1查询
+        List<HouseImage> houseImage1List = houseImageService.findImageByHouseIdAndType(id,1);
+        map.put("houseImage1List",houseImage1List);
+
+        //详情数据4：房源的房产图片，表：hse_house_image
+        //房产图片通过house_id+type2查询
+        List<HouseImage> houseImage2List = houseImageService.findImageByHouseIdAndType(id,2);
+        map.put("houseImage2List",houseImage2List);
 
         return PAGE_SHOW;
     }

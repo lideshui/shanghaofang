@@ -8632,3 +8632,424 @@ public class HouseController extends BaseController {
 
 
 
+## 5.4房源详情之介绍和图片
+
+展示房源详细信息、房源小区信息、房源图片、房源房产图片
+
+### 5.4.1准备web资源
+
+#### 5.4.1.1创建show页面
+
+house/show.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:include="common/head :: head"></head>
+<body class="gray-bg">
+<div class="row">
+  <div class="col-sm-12">
+    <div class="wrapper wrapper-content animated fadeInUp">
+      <div class="ibox">
+        <div class="ibox-content">
+          <div class="row">
+            <div class="col-sm-12">
+              <div class="m-b-md">
+                <a th:href="@{/house/show/{id}(id=${house.id})}" class="btn btn-white btn-xs pull-right">刷新</a>
+                <a href="/house" class="btn btn-white btn-xs pull-right">返回</a>
+                <h2 th:text="${house.name}">金色城市</h2>
+              </div>
+              <dl class="dl-horizontal">
+                <dt>状态：</dt>
+                <dd><span class="label label-primary" th:text="${house.status == 1 ? '已发布' : '未发布'}">进行中</span>
+                </dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-sm-5">
+              <dl class="dl-horizontal">
+                <dt>总价：</dt><dd th:text="${house.totalPrice} + '万元'"></dd>
+                <dt>单位价格：</dt><dd th:text="${house.unitPrice} + '元/平米'"></dd>
+                <dt>建筑面积：</dt><dd th:text="${house.buildArea} + '平米'"></dd>
+                <dt>套内面积：</dt><dd th:text="${house.insideArea} + '平米'"></dd>
+                <dt>房屋户型：</dt><dd th:text="${house.houseTypeName}"></dd>
+                <dt>所在楼层：</dt><dd th:text="${house.floorName}"></dd>
+                <dt>建筑结构：</dt><dd th:text="${house.buildStructureName}"></dd>
+                <dt>房屋朝向：</dt><dd th:text="${house.directionName}"></dd>
+                <dt>装修情况：</dt><dd th:text="${house.decorationName}"></dd>
+                <dt>房屋用途：</dt><dd th:text="${house.houseUseName}"></dd>
+                <dt>梯户比例：</dt><dd th:text="${house.elevatorRatio}"></dd>
+                <dt>挂牌时间：</dt><dd th:text="${house.listingDateString}"></dd>
+                <dt>上次交易：</dt><dd th:text="${house.lastTradeDateString}"></dd>
+              </dl>
+            </div>
+            <div class="col-sm-7" id="cluster_info">
+              <dl class="dl-horizontal">
+                <dt>小区名称：</dt><dd th:text="${community.name}"></dd>
+                <dt>小区均价：</dt><dd th:text="${community.averagePrice}+'元/平米'">已上传房本照片</dd>
+                <dt>区域：</dt><dd th:text="${community.areaName}">商品房</dd>
+                <dt>板块：</dt><dd th:text="${community.plateName}"></dd>
+                <dt>详细地址：</dt><dd th:text="${community.address}"></dd>
+                <dt>建筑年代：</dt><dd th:text="${community.buildYears}">满五年</dd>
+                <dt>物业价格：</dt><dd th:text="${community.propertyPrice}+'元/平米'">共有</dd>
+                <dt>物业公司：</dt><dd th:text="${community.propertyCompany}">有抵押 19万元 中国银行四川分行 业主自还</dd>
+                <dt>开发商：</dt><dd th:text="${community.developer}">已上传房本照片</dd>
+                <dt>楼栋数：</dt><dd th:text="${community.buildNum}">已上传房本照片</dd>
+                <dt>房屋数：</dt><dd th:text="${community.houseNum}">已上传房本照片</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-sm-12">
+              <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                  <h3>房源图片信息</h3>
+                  <a class="btn btn-xs btn-primary" id="upload1">上传房源图片</a>
+                </div>
+                <div class="ibox-content">
+                  <a th:each="item,it : ${houseImage1List}" class="fancybox" >
+                    <img alt="image" th:src="${item.imageUrl}"/>
+                    <a th:attr="data-id=${item.id}" class="deleteImages">删除</a>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-sm-12">
+              <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                  <h3>房产图片信息</h3>
+                  <a class="btn btn-xs btn-primary" id="upload2">上传房产图片</a>
+                </div>
+                <div class="ibox-content">
+                  <a th:each="item,it : ${houseImage2List}" class="fancybox" >
+                    <img alt="image" th:src="${item.imageUrl}"/>
+                    <a th:attr="data-id=${item.id}" class="deleteImages">删除</a>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="panel blank-panel">
+              <div class="pull-left" style="margin-top: 10px;">
+                <a class="btn btn-xs btn-white"><h3>经纪人信息</h3></a>
+                <a class="btn btn-xs btn-primary createBroker" sec:authorize="hasAuthority('house.editBroker')">添加</a>
+              </div>
+              <table class="table table-striped table-bordered table-hover dataTables-example">
+                <thead>
+                <tr>
+                  <th>序号</th>
+                  <th>经纪人头像</th>
+                  <th>经纪人姓名</th>
+                  <th>创建时间</th>
+                  <th>操作 </th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr class="gradeX" th:each="item,it : ${houseBrokerList}">
+                  <td class="text-center" th:text="${it.count}">11</td>
+                  <td>
+                    <img th:src="${item.brokerHeadUrl}" style="width: 60px; height: 60px;">
+                  </td>
+                  <td th:text="${item.brokerName}">33</td>
+                  <td th:text="${#dates.format(item.createTime,'yyyy-MM-dd HH:mm:ss')}" >33</td>
+                  <td class="text-center">
+                    <a class="deleteBroker" th:attr="data-id=${item.id}">删除</a>
+                  </td>
+                </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="panel blank-panel">
+              <div class="pull-left" style="margin-top: 10px;">
+                <a class="btn btn-xs btn-white"><h3>房东信息</h3></a>
+                <a class="btn btn-xs btn-primary createUser" sec:authorize="hasAuthority('house.editUser')">添加</a>
+              </div>
+              <table class="table table-striped table-bordered table-hover dataTables-example">
+                <thead>
+                <tr>
+                  <th>序号</th>
+                  <th>姓名</th>
+                  <th>手机号</th>
+                  <th>性别</th>
+                  <th>身份证号码</th>
+                  <th>创建时间</th>
+                  <th>操作 </th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr class="gradeX" th:each="item,it : ${houseUserList}">
+                  <td class="text-center" th:text="${it.count}">11</td>
+                  <td th:text="${item.name}">33</td>
+                  <td th:text="${item.phone}">33</td>
+                  <td th:text="${item.sex == 1 ? '男' : '女'}">33</td>
+                  <td th:text="${item.idNo}">33</td>
+                  <td th:text="${#dates.format(item.createTime,'yyyy-MM-dd HH:mm:ss')}" >33</td>
+                  <td class="text-center">
+                    <a class="editUser" th:attr="data-id=${item.id}">修改</a>
+                    <a class="deleteUser" th:attr="data-id=${item.id}">删除</a>
+                  </td>
+                </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 5.4.1.2修改index页面
+
+house/index.html中添加跳转按钮
+
+```html
+<a class="detail" th:attr="data-id=${item.id}" >详情</a>
+```
+
+house/index.html中添加js跳转事件
+
+```html
+<script>
+        $(".detail").on("click",function () {
+            var id = $(this).attr("data-id");
+            window.location = "/house/show/" + id;
+        });
+</script>
+```
+
+
+
+### 5.4.2dubobo服务端接口
+
+HouseImageService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.HouseImage;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.HouseImageService
+ */
+public interface HouseImageService extends BaseService<HouseImage>{
+
+    /**
+     * 通过house_id+type获取房产房源图片List
+     */
+    List<HouseImage> findImageByHouseIdAndType(Long houseId,Integer type);
+
+}
+```
+
+
+
+### 5.4.3dubobo服务端提供者
+
+房源对象虽然有全部的数据，但是获取的都是id，需要通过id拿到对应的name属性进行渲染，所以不得不修改getByid方法，返回name属性有值的对象
+
+房源图片表是hse_house_image，字段type=0时为房源图片，字段type=1时为房产图片
+
+#### 5.4.3.1dao层
+
+HouseImageDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.HouseImage;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.HouseImageDao
+ */
+public interface HouseImageDao extends BaseDao<HouseImage>{
+
+    /**
+     * 通过house_id+type获取房产房源图片List
+     */
+    List<HouseImage> findImageByHouseIdAndType(@Param("houseId") Long houseId,@Param("type") Integer type);
+
+}
+```
+
+HouseImageMapper
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.HouseImageDao">
+
+    <!--通过house_id+type获取房产房源图片List-->
+    <select id="findImageByHouseIdAndType" resultType="houseImage">
+        select * from hse_house_image where house_id=#{houseId} and type=#{type} and is_deleted=0
+    </select>
+
+</mapper>
+```
+
+
+
+#### 5.4.3.2service层
+
+CommunityServiceImpl 添加内容
+
+```java
+/**
+ * 重写getById，通过字典和id，为区域和版快信息赋值
+ */
+@Override
+public Community getById(Serializable id) {
+    Community community = communityDao.getById(id);
+
+    //通过字典为区域赋值
+    community.setPlateName(dictDao.getNameById(community.getPlateId()));
+    //通过字典为区域赋值
+    community.setAreaName(dictDao.getNameById(community.getAreaId()));
+
+    return community;
+}
+```
+
+HouseServiceImpl添加内容
+
+```java
+@Autowired
+private DictDao dictDao;
+
+/**
+ * 重写getById，通过字典和id，为其房源详细信息赋值
+ */
+@Override
+public House getById(Serializable id) {
+    House house = houseDao.getById(id);
+    
+    //需要通过数据字典中数据的id值获取对应的name值
+    //为户型name赋值
+    house.setHouseTypeName(dictDao.getNameById(house.getHouseTypeId()));
+
+    //为楼层name赋值
+    house.setFloorName(dictDao.getNameById(house.getFloorId()));
+
+    //为建筑结构name赋值
+    house.setBuildStructureName(dictDao.getNameById(house.getBuildStructureId()));
+
+    //为朝向name赋值
+    house.setDirectionName(dictDao.getNameById(house.getDirectionId()));
+
+    //为装修情况name赋值
+    house.setDecorationName(dictDao.getNameById(house.getDecorationId()));
+
+    //房屋用途name赋值
+    house.setHouseUseName(dictDao.getNameById(house.getHouseUseId()));
+    return house;
+}
+```
+
+HouseImageServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.dao.HouseImageDao;
+import com.atguigu.entity.HouseImage;
+import com.atguigu.service.HouseImageService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.HouseImageServiceImpl
+ */
+@DubboService
+public class HouseImageServiceImpl extends BaseServiceImpl<HouseImage> implements HouseImageService {
+
+    @Autowired
+    private HouseImageDao houseImageDao;
+
+    @Override
+    public BaseDao<HouseImage> getEntityDao() {
+        return houseImageDao;
+    }
+
+    /**
+     * 通过house_id+type获取房产房源图片List
+     */
+    @Override
+    public List<HouseImage> findImageByHouseIdAndType(Long houseId, Integer type) {
+        return houseImageDao.findImageByHouseIdAndType(houseId,type);
+    }
+
+}
+```
+
+
+
+### 5.4.4dubobo服务端消费者
+
+HouseController添加内容
+
+```java
+    @DubboReference
+    private HouseImageService houseImageService;
+
+    /**
+     * 页面详情
+     */
+    @RequestMapping("/show/{id}")
+    public String show(Map map,@PathVariable Long id) {
+            //详情数据1：房源详细信息
+            //ServiceImpl实现类中重写getById，有些属性只有id不满足要求，需要从字典中获取name⚠️
+            House house = houseService.getById(id);
+            map.put("house",house);
+
+            //详情数据2：房源小区信息
+            //ServiceImpl实现类中重写getById，有些属性只有id不满足要求，需要从字典中获取name⚠️
+            Community community = communityService.getById(house.getCommunityId());
+            map.put("community",community);
+
+            //详情数据3：房源的房源图片，表：hse_house_image
+            //房源和房产图片都在hse_house_image一张表上，通过type区分，1房源2房产
+            //房源图片通过house_id+type1查询
+            List<HouseImage> houseImage1List = houseImageService.findImageByHouseIdAndType(id,1);
+            map.put("houseImage1List",houseImage1List);
+
+
+            //详情数据4：房源的房产图片，表：hse_house_image
+            //房产图片通过house_id+type2查询
+            List<HouseImage> houseImage2List = houseImageService.findImageByHouseIdAndType(id,2);
+            map.put("houseImage2List",houseImage2List);
+
+        return PAGE_SHOW;
+    }
+```
+
