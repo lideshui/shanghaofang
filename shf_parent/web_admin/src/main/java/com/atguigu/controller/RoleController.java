@@ -7,8 +7,11 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 
+import javax.servlet.http.HttpServletRequest;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * @Description: TODD
@@ -28,16 +31,41 @@ public class RoleController {
     private RoleService roleService;
 
     /**
-     * @Description: 处理/role请求，查询所有角色
+     * @Description: 处理/role请求，根据条件搜索，代替findAll
      */
     @RequestMapping
-    public String findAll(Map map){
-        //1. 调用业务层处理业务
-        List<Role> list = roleService.findAll();
-        //2. 将数据共享到请求域
-        map.put("list",list);
-        //3. 设置逻辑视图
+    public String findRole(
+            Map map,
+            HttpServletRequest request
+    ) {
+        Map<String, Object> filters =  getFilters(request);
+        List<Role> list = roleService.findRole(filters);
+        //向请求域添加搜索结果数据
+        map.put("list", list);
+        //搜索内容的回显
+        map.put("filters", filters);
         return PAGE_INDEX;
+    }
+
+    /**
+     * @Description: 将请求中的搜索条件分装成map
+     */
+    private Map<String, Object> getFilters(HttpServletRequest request) {
+        Enumeration<String> paramNames = request.getParameterNames();
+        Map<String, Object> filters = new TreeMap();
+        while(paramNames != null && paramNames.hasMoreElements()) {
+            String paramName = (String)paramNames.nextElement();
+            String[] values = request.getParameterValues(paramName);
+            if (values != null && values.length != 0) {
+                if (values.length > 1) {
+                    filters.put(paramName, values);
+                } else {
+                    //若只有一个value，只向Map集合中放value本身
+                    filters.put(paramName, values[0]);
+                }
+            }
+        }
+        return filters;
     }
 
     /**

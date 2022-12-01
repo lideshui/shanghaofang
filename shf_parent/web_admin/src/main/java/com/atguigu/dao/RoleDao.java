@@ -3,6 +3,7 @@ package com.atguigu.dao;
 import com.atguigu.entity.Role;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * @Description: TODD
@@ -10,9 +11,9 @@ import java.util.List;
  */
 public interface RoleDao {
     /**
-     * @Description: 查询所有
+     * @Description: index页搜索条件，可替代查询所有
      */
-    List<Role> findAll();
+    List<Role> findRole(Map<String,Object> filters);
 
     /**
      * @Description: 插入一条数据

@@ -2,6 +2,7 @@ package com.atguigu.service;
 
 import com.atguigu.entity.Role;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @Description: TODD
@@ -9,9 +10,9 @@ import java.util.List;
  */
 public interface RoleService {
     /**
-     * @Description: 角色列表
+     * @Description: index页搜索条件，可替代查询所有
      */
-    List<Role> findAll();
+    List<Role> findRole(Map<String,Object> filters);
 
     /**
      * @Description: 角色新增

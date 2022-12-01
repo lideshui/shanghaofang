@@ -10,10 +10,17 @@
         select id,role_name,role_code,description,create_time,update_time,is_deleted from acl_role
     </sql>
 
-    <!--查询所有-->
-    <select id="findAll" resultType="role">
+    <!--按条件模糊搜索-->
+    <select id="findRole" resultType="role">
         <include refid="columns"></include>
-        where is_deleted = 0
+        <where>
+            <!--判断有无搜索条件-->
+            <if test="roleName != null and roleName != ''">
+                role_name like concat('%',#{roleName},'%')
+                <!--精准搜索：and role_name = #{roleName}-->
+            </if>
+            and is_deleted = 0
+        </where>
     </select>
 
     <!--查询单个实例，用于编辑页面的数据回显-->

@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * @Description: TODD
@@ -18,11 +19,11 @@ public class RoleServiceImpl implements RoleService {
     private RoleDao roleDao;
 
     /**
-     * @Description: 展示所有角色
+     * @Description: 条件搜索，可代替查询所有角色
      */
     @Override
-    public List<Role> findAll() {
-        return roleDao.findAll();
+    public List<Role> findRole(Map<String, Object> filters) {
+        return  roleDao.findRole(filters);
     }
 
     /**
