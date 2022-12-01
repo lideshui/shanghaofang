@@ -50,4 +50,24 @@ public class DictServiceImpl implements DictService {
         return result;
     }
 
+    /**
+     * 为下拉框服务：根据编码间接获取子节点列表
+     */
+    @Override
+    public List<Dict> findListByDictCode(String dictCode) {
+        //先根据编码获取对应的实例
+        Dict dict = dictDao.getByDictCode(dictCode);
+        if(null == dict) return null;
+        //如果实例不为空，就获取当前实例的所有子节点
+        return this.findListByParentId(dict.getId());
+    }
+
+    /**
+     * 为下拉框服务：根据上级id获取子节点列表
+     */
+    @Override
+    public List<Dict> findListByParentId(Long parentId) {
+        return dictDao.findListByParentId(parentId);
+    }
+
 }

@@ -17,5 +17,15 @@ public interface DictService {
      */
     List<Map<String,Object>> getNodesByParentId(Long id);
 
+    /**
+     * 为Community下拉框服务：根据编码获取子节点数据列表
+     */
+    List<Dict> findListByDictCode(String dictCode);
+
+
+    /**
+     * 为Community下拉框服务：根据上级id获取子节点数据列表
+     */
+    List<Dict> findListByParentId(Long parentId);
 
 }

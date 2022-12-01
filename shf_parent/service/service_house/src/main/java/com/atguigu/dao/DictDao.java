@@ -19,4 +19,14 @@ public interface DictDao {
      */
     Integer isParentNode(Long id);
 
+    /**
+     * 根据编码获取实例，为下拉列表赋值
+     */
+    Dict getByDictCode(String dictCode);
+
+    /**
+     * 通过id获取name，通过id获取区域和板块的名字
+     */
+    String getNameById(Long id);
+
 }

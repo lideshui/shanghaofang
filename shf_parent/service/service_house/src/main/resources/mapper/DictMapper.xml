@@ -22,4 +22,18 @@
         where parent_id = #{parentId}
     </select>
 
+    <!--根据编码获取实例-->
+    <select id="getByDictCode" resultType="Dict">
+        <include refid="columns" />
+        where
+        dict_code = #{dictCode}
+    </select>
+
+    <!--通过id获取name-->
+    <select id="getNameById" resultType="string">
+        select name from  hse_dict
+        where
+        id = #{id}
+    </select>
+
 </mapper>
