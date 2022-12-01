@@ -132,4 +132,12 @@
         where id=#{id}
     </update>
 
+    <!--查询所有小区，House下拉选择框要使用⚠️-->
+    <select id="findAll" resultType="Community">
+        <include refid="columns"></include>
+        where
+        is_deleted = 0
+        order by id desc
+    </select>
+
 </mapper>

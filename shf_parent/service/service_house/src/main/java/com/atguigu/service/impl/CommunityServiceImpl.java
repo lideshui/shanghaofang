@@ -58,4 +58,12 @@ public class CommunityServiceImpl extends BaseServiceImpl<Community> implements 
         }
         return new PageInfo<Community>(list, 3);
     }
+
+    /**
+     * 获取全部小区列表，House下拉选择框要使用
+     */
+    @Override
+    public List<Community> findAll() {
+        return communityDao.findAll();
+    }
 }

@@ -1,0 +1,174 @@
+package com.atguigu.controller;
+
+import com.atguigu.entity.*;
+import com.atguigu.service.CommunityService;
+import com.atguigu.service.DictService;
+import com.atguigu.service.HouseService;
+import com.github.pagehelper.PageInfo;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.HouseController
+ */
+@Controller
+@RequestMapping(value = "/house")
+public class HouseController extends BaseController {
+
+
+    @DubboReference
+    private HouseService houseService;
+
+    @DubboReference
+    private DictService dictService;
+
+    @DubboReference
+    private CommunityService communityService;
+
+    private final static String LIST_ACTION = "redirect:/house";
+    private final static String PAGE_INDEX = "house/index";
+    private final static String PAGE_SHOW = "house/show";
+    private final static String PAGE_CREATE = "house/create";
+    private final static String PAGE_EDIT = "house/edit";
+    private final static String PAGE_SUCCESS = "common/success";
+
+
+    /**
+     * 处理/house请求路径，跳转到index页面，展示搜索结果
+     */
+    @RequestMapping
+    public String index(Map map, HttpServletRequest request) {
+        Map<String, Object> filters = getFilters(request);
+        PageInfo<House> page = houseService.findPage(filters);
+
+        //将PageInfo分页对象放到请求域，里面有分页信息和搜索结果
+        map.put("page", page);
+        //搜索数据回显
+        map.put("filters",filters);
+
+        //为下拉框准备数据
+        getSource(map);
+
+        return PAGE_INDEX;
+    }
+
+
+    /**
+     * 处理/create请求路径，进入新增页面
+     */
+    @RequestMapping("/create")
+    public String create(Map map){
+        //为下拉框准备数据
+        getSource(map);
+        return PAGE_CREATE;
+    }
+
+
+    /**
+     * 处理/save请求路径，保存新增
+     */
+    @RequestMapping("/save")
+    public String save(House house) {
+        houseService.insert(house);
+
+        return PAGE_SUCCESS;
+    }
+
+
+    /**
+     * 处理/edit/id请求路径，到编辑修改页面
+     */
+    @RequestMapping("/edit/{houseId}")
+    public String edit(@PathVariable Long houseId,Map map){
+        //为下拉框准备数据
+        getSource(map);
+        House house = houseService.getById(houseId);
+        map.put("house",house);
+        return PAGE_EDIT;
+    }
+
+
+
+    /**
+     * 处理/delete请求路径，删除数据
+     */
+    @RequestMapping("/delete/{id}")
+    public String delete(@PathVariable Long id) {
+        houseService.delete(id);
+        return LIST_ACTION;
+    }
+
+
+    /**
+     * 保处理/update请求路径
+     */
+    @RequestMapping("/update")
+    public String update(House house){
+        houseService.update(house);
+        return PAGE_SUCCESS;
+    }
+
+
+    /**
+     * 处理/publish/id/status请求路径，发布房源
+     */
+    @RequestMapping("/publish/{id}/{status}")
+    public String publish(@PathVariable Long id,@PathVariable Integer status) {
+        houseService.publish(id, status);
+        return LIST_ACTION;
+    }
+
+
+    /**
+     * 封装所有的下拉选择框，多个页面都要使用
+     */
+    public void getSource(Map map){
+        //需要所有的小区
+        List<Community> communityList = communityService.findAll();
+        //所有的户型
+        List<Dict> houseTypeList = dictService.findListByDictCode("houseType");
+        //所有的装修情况
+        List<Dict> decorationList = dictService.findListByDictCode("decoration");
+        //所有的楼层
+        List<Dict> floorList = dictService.findListByDictCode("floor");
+        //所有的朝向
+        List<Dict> directionList = dictService.findListByDictCode("direction");
+        //所有的建筑结构
+        List<Dict> buildStructureList = dictService.findListByDictCode("buildStructure");
+        //所有的房屋用途
+        List<Dict> houseUseList = dictService.findListByDictCode("houseUse");
+
+        map.put("communityList",communityList);
+        map.put("houseTypeList",houseTypeList);
+        map.put("decorationList",decorationList);
+        map.put("floorList",floorList);
+        map.put("directionList",directionList);
+        map.put("buildStructureList",buildStructureList);
+        map.put("houseUseList",houseUseList);
+    }
+
+
+    /**
+     * 页面详情
+     */
+    @RequestMapping("/show/{id}")
+    public String show(Map map,@PathVariable Long id) {
+        //房源详细信息
+        //ServiceImpl实现类中重写getById，有些属性只有id不满足要求，需要从字典中获取name⚠️
+        House house = houseService.getById(id);
+        map.put("house",house);
+
+        //房源小区信息
+        Community community = communityService.getById(house.getCommunityId());
+        map.put("community",community);
+
+        return PAGE_SHOW;
+    }
+}

@@ -6749,3 +6749,1886 @@ public class DictController {
 
 
 
+## 5.2小区管理
+
+### 5.2.1准备web资源
+
+#### 5.2.1.1创建index页面
+
+在web_admin模块创建页面：pages/community/index.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head th:include="common/head :: head"></head>
+
+<body class="gray-bg">
+<form id="ec" th:action="@{/community}" method="post">
+    <div class="wrapper wrapper-content animated fadeInRight">
+
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="ibox float-e-margins">
+                    <div class="ibox-content">
+                        <table class="table form-table margin-bottom10">
+                            <tr>
+                                <td>
+                                    <input type="text" name="name" th:value="${#maps.containsKey(filters, 'name')} ? ${filters.name} : ''" placeholder="小区名称" class="input-sm form-control"/>
+                                </td>
+                                <td>
+                                    <select name="areaId" id="areaId" class="form-control">
+                                        <option value="">-请选择区域-</option>
+                                        <option th:each="item,it : ${areaList}" th:text="${item.name}" th:value="${item.id}" th:selected="${#maps.containsKey(filters, 'areaId')} ? ${item.id } eq  ${filters.areaId } : false">-选择区域-</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="plateId" id="plateId" class="form-control">
+                                        <option value="">-请选择-</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </table>
+                        <div>
+                            <button type="submit" class="btn btn-sm btn-primary"> 搜索</button>
+                            <button type="button" class="btn btn-sm btn-primary create" sec:authorize="hasAuthority('community.create')"> 新增</button>
+                            <button type="button" id="loading-example-btn" onclick="javascript:window.location.reload();" class="btn btn-white btn-sm">刷新</button>
+                        </div>
+                        <table class="table table-striped table-bordered table-hover dataTables-example">
+                            <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>小区名称</th>
+                                <th>区域</th>
+                                <th>板块</th>
+                                <th>详细地址</th>
+                                <th>建筑年代</th>
+                                <th>创建时间</th>
+                                <th>操作 </th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr class="gradeX" th:each="item,it: ${page.list}">
+                                <td class="text-center" th:text="${it.count}">11</td>
+                                <td th:text="${item.name}">22</td>
+                                <td th:text="${item.areaName}">33</td>
+                                <td th:text="${item.plateName}">22</td>
+                                <td th:text="${item.address}">22</td>
+                                <td th:text="${item.buildYears}">22</td>
+                                <td th:text="${#dates.format(item.createTime,'yyyy-MM-dd HH:mm:ss')}" >33</td>
+                                <td class="text-center">
+                                    <a class="edit" th:attr="data-id=${item.id}" sec:authorize="hasAuthority('community.edit')">修改</a>
+                                    <a class="delete" th:attr="data-id=${item.id}" sec:authorize="hasAuthority('community.delete')">删除</a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="row" th:include="common/pagination :: pagination"></div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+<script th:inline="javascript">
+    $(function(){
+        $(".create").on("click",function () {
+            opt.openWin('/community/create','新增',630,430)
+        });
+        $(".edit").on("click",function () {
+            var id = $(this).attr("data-id");
+            opt.openWin('/community/edit/' + id,'修改',580,430);
+        });
+        $(".delete").on("click",function(){
+            var id = $(this).attr("data-id");
+            opt.confirm('/community/delete/'+id);
+        });
+
+        $("#areaId").bind("change",function() {
+            var areaId = $("#areaId").val();
+            if(areaId == '') return
+            $("#plateId").empty();
+            $.get("/dict/findListByParentId/" + areaId,function(response) {
+                $("<option value=''>-请选择板块-</option>").appendTo("#plateId");
+                var res = JSON.parse(response)
+                $.each(res.data, function(i,item) {
+                    var plateId = [[${#maps.containsKey(filters, 'plateId')} ? ${filters.plateId} : '']];
+                    if(item.id == plateId) {
+                        $("<option></option>").val(item.id).text(item.name).attr('selected', 'true').appendTo("#plateId");
+                    } else {
+                        $("<option></option>").val(item.id).text(item.name).appendTo("#plateId");
+                    }
+                });
+            });
+        });
+        // 触发 select 元素的 change 事件：
+        $("#areaId").trigger("change");
+    });
+</script>
+</body>
+</html>
+```
+
+
+
+#### 5.2.1.2创建create页面
+
+在web_admin模块创建页面：pages/community/create.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<script type="text/javascript">
+    $(function(){
+        $("#areaId").bind("change",function() {
+            var areaId = $("#areaId").val();
+            $("#plateId").empty();
+            $.get("/dict/findListByParentId/" + areaId,function(response) {
+                var res = JSON.parse(response)
+                $.each(res.data, function(i,item) {
+                    $("<option></option>").val(item.id).text(item.name).appendTo("#plateId");
+                });
+            });
+        });
+    });
+</script>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/community/save}" method="post" class="form-horizontal">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">小区名称：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="name" id="name" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">描述：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="description" id="description" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">区域：</label>
+                    <div class="col-sm-10">
+                        <select name="areaId" id="areaId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${areaList}" th:text="${item.name}" th:value="${item.id}">-选择区域-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">板块：</label>
+                    <div class="col-sm-10">
+                        <select name="plateId" id="plateId" class="form-control">
+                            <option value="">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">详细地址：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="address" id="address" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">建筑年代：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="buildYears" id="buildYears" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">物业价格(元/平)：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="propertyPrice" id="propertyPrice" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">物业公司：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="propertyCompany" id="propertyCompany" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">开发商：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="developer" id="developer" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">楼栋数：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="buildNum" id="buildNum" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">房屋数：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="houseNum" id="houseNum" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">均价(万元/平)：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="averagePrice" id="averagePrice" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 5.2.1.3创建edit页面
+
+在web_admin模块创建页面：pages/community/edit.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<script type="text/javascript">
+    $(function(){
+        $("#areaId").bind("change",function() {
+            var areaId = $("#areaId").val();
+            if(areaId == '') return
+            $("#plateId").empty();
+            $.get("/dict/findListByParentId/" + areaId,function(response) {
+                var res = JSON.parse(response)
+                $.each(res.data, function(i,item) {
+                    var plateId = [[${community.plateId}]];
+                    if(item.id == plateId) {
+                        $("<option></option>").val(item.id).text(item.name).attr('selected', 'true').appendTo("#plateId");
+                    } else {
+                        $("<option></option>").val(item.id).text(item.name).appendTo("#plateId");
+                    }
+                });
+            });
+        });
+        // 触发 select 元素的 change 事件：
+        $("#areaId").trigger("change");
+    });
+</script>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/community/update}" method="post" class="form-horizontal">
+                <input type="hidden" name="id" th:value="${community.id}">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">小区名称：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="name" id="name" th:value="${community.name}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">描述：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="description" id="description" th:value="${community.description}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">区域：</label>
+                    <div class="col-sm-10">
+                        <select name="areaId" id="areaId" class="form-control">
+                            <option value="">-选择区域-</option>
+                            <option th:each="item,it : ${areaList}" th:text="${item.name}" th:value="${item.id}" th:selected="${item.id} eq ${community.areaId}">-选择区域-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">板块：</label>
+                    <div class="col-sm-10">
+                        <select name="plateId" id="plateId" class="form-control">
+                            <option value="">-选择板块-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">详细地址：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="address" id="address" th:value="${community.address}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">建筑年代：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="buildYears" id="buildYears" th:value="${community.buildYears}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">物业价格(元/平)：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="propertyPrice" id="propertyPrice" th:value="${community.propertyPrice}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">物业公司：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="propertyCompany" id="propertyCompany" th:value="${community.propertyCompany}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">开发商：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="developer" id="developer" th:value="${community.developer}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">楼栋数：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="buildNum" id="buildNum" th:value="${community.buildNum}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">房屋数：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="houseNum" id="houseNum" th:value="${community.houseNum}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">均价(万元/平)：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="averagePrice" id="averagePrice" th:value="${community.averagePrice}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group posf">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 5.2.1.4添加导航
+
+在frame/index文件中添加导航
+
+```html
+<li>
+   <a class="J_menuItem" th:href="@{/community}" data-index="0">小区管理</a>
+</li>
+```
+
+
+
+### 5.2.2dubobo服务端接口
+
+DictService
+
+```java
+/**
+ * 为Community下拉框服务：根据编码获取子节点数据列表
+ */
+List<Dict> findListByDictCode(String dictCode);
+
+
+/**
+ * 为Community下拉框服务：根据上级id获取子节点数据列表
+ */
+List<Dict> findListByParentId(Long parentId);
+```
+
+在service_api模块新增serviceAPI：
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.Community;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.ComunityService
+ */
+public interface CommunityService extends BaseService<Community> {
+}
+```
+
+
+
+### 5.2.3dubobo服务提供者
+
+#### 5.2.3.1dao层
+
+DictDao新增内容
+
+```java
+    /**
+     * 根据编码获取实例，为下拉列表赋值
+     */
+    Dict getByDictCode(String dictCode);
+
+    /**
+     * 通过id获取name，通过id获取区域和板块的名字
+     */
+    String getNameById(Long id);
+```
+
+DictMapper新增内容
+
+```xml
+    <!--判断该节点是否是父节点-->
+    <select id="isParentNode" resultType="integer">
+        select count(*) from hse_dict
+        where parent_id = #{parentId}
+    </select>
+
+    <!--根据编码获取实例-->
+    <select id="getByDictCode" resultType="Dict">
+        <include refid="columns" />
+        where
+        dict_code = #{dictCode}
+    </select>
+
+    <!--通过id获取name-->
+    <select id="getNameById" resultType="string">
+        select name from  hse_dict
+        where
+        id = #{id}
+    </select>
+```
+
+ CommunityDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.Community;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.CommunityDao
+ */
+public interface CommunityDao extends BaseDao<Community>{
+}
+```
+
+CommunityMapper
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.CommunityDao">
+
+    <!-- 用于select查询公用抽取的列 -->
+    <sql id="columns">
+        select
+        id,name,description,province_id,city_id,area_id,plate_id,address,longitude,latitude,build_years,property_price,property_company,developer,build_num,house_num,average_price,create_time,update_time,is_deleted
+        from hse_community
+    </sql>
+
+    <!--首次进入index页面及搜索结果的展示数据-->
+    <select id="findPage" resultType="Community">
+        <include refid="columns"/>
+
+        <where>
+            <if test="name != null and name != ''">
+                and name like CONCAT('%',#{name},'%')
+            </if>
+            <if test="areaId != null and areaId != ''">
+                and area_id = #{areaId}
+            </if>
+            <if test="plateId != null and plateId != ''">
+                and plate_id = #{plateId}
+            </if>
+            and is_deleted = 0
+        </where>
+        order by id desc
+    </select>
+
+    <!--新增一个实体-->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into hse_community (
+        id ,
+        name ,
+        description ,
+        province_id ,
+        city_id ,
+        area_id ,
+        plate_id ,
+        address ,
+        longitude ,
+        latitude ,
+        build_years ,
+        property_price ,
+        property_company ,
+        developer ,
+        build_num ,
+        house_num ,
+        average_price
+        ) values (
+        #{id} ,
+        #{name} ,
+        #{description} ,
+        #{provinceId} ,
+        #{cityId} ,
+        #{areaId} ,
+        #{plateId} ,
+        #{address} ,
+        #{longitude} ,
+        #{latitude} ,
+        #{buildYears} ,
+        #{propertyPrice} ,
+        #{propertyCompany} ,
+        #{developer} ,
+        #{buildNum} ,
+        #{houseNum} ,
+        #{averagePrice}
+        )
+    </insert>
+
+    <!--删除实体，实际上是修改is_deleted值-->
+    <update id="delete">
+        update hse_community set
+        update_time = now(),
+        is_deleted = 1
+        where
+        id = #{id}
+    </update>
+
+    <!--根据id查询实体信息，修改回显-->
+    <select id="getById" resultType="Community">
+        <include refid="columns"/>
+        where
+        id = #{id}
+    </select>
+
+    <!--修改实体-->
+    <update id="update">
+        update hse_community
+        <set>
+            <if test="name!=null and name!=''">
+                name=#{name},
+            </if>
+            <if test="description!=null and description!=''">
+                description=#{description},
+            </if>
+            <if test="areaId!=null and areaId!=''">
+                area_Id=#{areaId},
+            </if>
+            <if test="plateId!=null and plateId!=''">
+                plate_Id=#{plateId},
+            </if>
+            <if test="address!=null and address!=''">
+                address=#{address},
+            </if>
+            <if test="buildYears!=null and buildYears!=''">
+                build_Years=#{buildYears},
+            </if>
+            <if test="propertyPrice!=null and propertyPrice!=''">
+                property_Price=#{propertyPrice},
+            </if>
+            <if test="propertyCompany!=null and propertyCompany!=''">
+                property_Company=#{propertyCompany},
+            </if>
+            <if test="developer!=null and developer!=''">
+                developer=#{developer},
+            </if>
+            <if test="buildNum!=null and buildNum!=''">
+                build_Num=#{buildNum},
+            </if>
+            <if test="houseNum!=null and houseNum!=''">
+                house_Num=#{houseNum},
+            </if>
+            <if test="averagePrice!=null and averagePrice!=''">
+                average_Price=#{averagePrice},
+            </if>
+        </set>
+        where id=#{id}
+    </update>
+
+</mapper>
+```
+
+
+
+#### 5.2.3.2service层
+
+DictServiceImpl新增内容
+
+```java
+    /**
+     * 为下拉框服务：根据编码间接获取子节点列表
+     */
+    @Override
+    public List<Dict> findListByDictCode(String dictCode) {
+        //先根据编码获取对应的实例
+        Dict dict = dictDao.getByDictCode(dictCode);
+        if(null == dict) return null;
+        //如果实例不为空，就获取当前实例的所有子节点
+        return this.findListByParentId(dict.getId());
+    }
+
+    /**
+     * 为下拉框服务：根据上级id获取子节点列表
+     */
+    @Override
+    public List<Dict> findListByParentId(Long parentId) {
+        return dictDao.findListByParentId(parentId);
+    }
+```
+
+CommunityServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.dao.CommunityDao;
+import com.atguigu.dao.DictDao;
+import com.atguigu.entity.Community;
+import com.atguigu.service.CommunityService;
+import com.atguigu.util.CastUtil;
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.List;
+import java.util.Map;
+
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.CommunityServiceImpl
+ */
+@DubboService
+public class CommunityServiceImpl extends BaseServiceImpl<Community> implements CommunityService {
+
+    @Autowired
+    private CommunityDao communityDao;
+
+    @Autowired
+    private DictDao dictDao;
+
+    @Override
+    public BaseDao<Community> getEntityDao() {
+        return communityDao;
+    }
+
+    /**
+     * 重写封装后的PageInfo方法，因为需要为区域和板块查询赋值
+     * 虽然我们不知道区域和板块的名字，但是有他们的id，可以根据id去字典里查⚠️
+     * 循环的每一个对象，都将查到的结果name，设置到自己areaName和plateName属性上
+     * 使用两表联查也可以，但是复杂度相对较高
+     */
+    @Override
+    public PageInfo<Community> findPage(Map<String, Object> filters) {
+        //当前页数
+        int pageNum = CastUtil.castInt(filters.get("pageNum"), 1);
+        //每页显示的记录条数
+        int pageSize = CastUtil.castInt(filters.get("pageSize"), 3);
+        PageHelper.startPage(pageNum, pageSize);
+
+        List<Community> list = communityDao.findPage(filters);
+        for(Community community : list) {
+            //获取区域和板块的名字
+            String areaName = dictDao.getNameById(community.getAreaId());
+            String plateName = dictDao.getNameById(community.getPlateId());
+            //设置区域和板块的名字
+            community.setAreaName(areaName);
+            community.setPlateName(plateName);
+        }
+        return new PageInfo<Community>(list, 3);
+    }
+}
+```
+
+
+
+### 5.2.4dubobo服务消费者
+
+DictController新增内容
+
+```java
+    /**
+     * 为下拉列表服务，根据编码间接获取子节点列表，第一次选择
+     */
+    @RequestMapping(value = "findListByDictCode/{dictCode}")
+    @ResponseBody
+    public Result<List<Dict>> findListByDictCode(@PathVariable String dictCode) {
+        List<Dict> list = dictService.findListByDictCode(dictCode);
+        return Result.ok(list);
+    }
+
+    /**
+     * 为下拉列表服务，根据上级id获取子节点列表，第二次选择
+     */
+    @RequestMapping(value = "findListByParentId/{parentId}")
+    @ResponseBody
+    public Result<List<Dict>> findListByParentId(@PathVariable Long parentId) {
+        List<Dict> list = dictService.findListByParentId(parentId);
+        return Result.ok(list);
+    }
+```
+
+CommunityController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.Community;
+import com.atguigu.entity.Dict;
+import com.atguigu.service.CommunityService;
+import com.atguigu.service.DictService;
+import com.github.pagehelper.PageInfo;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.CommunityController
+ */
+@Controller
+@RequestMapping("/community")
+public class CommunityController extends BaseController {
+
+    private final static String LIST_ACTION = "redirect:/community";
+    private final static String PAGE_INDEX = "community/index";
+    private final static String PAGE_SHOW = "community/show";
+    private final static String PAGE_CREATE = "community/create";
+    private final static String PAGE_EDIT = "community/edit";
+    private final static String PAGE_SUCCESS = "common/success";
+
+    @DubboReference
+    private CommunityService communityService;
+
+    @DubboReference
+    private DictService dictService;
+
+
+    /**
+     * 处理/community请求，进入index页面
+     */
+    @RequestMapping
+    public String index(Map map, HttpServletRequest request) {
+        //处理请求参数
+        Map<String, Object> filters = getFilters(request);
+        //传递参数到service层，拿到查询结果并构建分页对象
+        PageInfo<Community> page = communityService.findPage(filters);
+
+        //将PageInfo分页对象放到请求域，里面有分页信息和搜索结果
+        map.put("page", page);
+        //搜索内容的回显
+        map.put("filters", filters);
+
+        //将第一个选择区域的下拉框的值添加到请求域中⚠️
+        List<Dict> areaList = dictService.findListByDictCode("beijing");
+        map.put("areaList", areaList);
+
+        return PAGE_INDEX;
+    }
+
+
+    /**
+     * 处理/community/create请求，进入新增页面
+     */
+    @RequestMapping("/create")
+    public String create(Map map) {
+        //将第一个选择区域的下拉框的值添加到请求域中⚠️
+        List<Dict> areaList = dictService.findListByDictCode("beijing");
+        map.put("areaList", areaList);
+
+        return PAGE_CREATE;
+    }
+
+
+    /**
+     * 处理/community/save请求，保存新增
+     */
+    @RequestMapping("/save")
+    public String save(Community community) {
+        //使用bean作为入参，根据bean插入数据
+        communityService.insert(community);
+        return PAGE_SUCCESS;
+    }
+
+
+    /**
+     * 处理/community/edit/id请求，进入修改页面
+     */
+    @RequestMapping("/edit/{id}")
+    public String edit(Map map, @PathVariable Long id) {
+        //根据修改的id获取信息回显
+        Community community = communityService.getById(id);
+        map.put("community", community);
+
+        //将第一个选择区域的下拉框的值添加到请求域中⚠️
+        List<Dict> areaList = dictService.findListByDictCode("beijing");
+        map.put("areaList", areaList);
+        return PAGE_EDIT;
+    }
+
+
+    /**
+     * 处理/community/update请求，保存修改
+     */
+    @RequestMapping(value = "/update")
+    public String update(Community community) {
+        //使用bean作为入参，根据bean修改数据
+        communityService.update(community);
+        return PAGE_SUCCESS;
+    }
+
+
+    /**
+     * 处理/community/delete/id请求，删除实例
+     */
+    @RequestMapping("/delete/{id}")
+    public String delete(@PathVariable Long id) {
+        communityService.delete(id);
+        return LIST_ACTION;
+    }
+
+}5
+```
+
+
+
+## 5.3房源管理
+
+### 5.3.1准备web资源
+
+#### 5.3.1.1创建index页面
+
+在web_admin模块创建页面：pages/house/index.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head th:include="common/head :: head"></head>
+
+<body class="gray-bg">
+<form id="ec" th:action="@{/house}" method="post">
+    <div class="wrapper wrapper-content animated fadeInRight">
+
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="ibox float-e-margins">
+                    <div class="ibox-content">
+                        <table class="table form-table margin-bottom10">
+                            <tr>
+                                <td>
+                                    <input type="text" name="name" th:value="${#maps.containsKey(filters, 'name')} ? ${filters.name} : ''" placeholder="房源名称" class="input-sm form-control"/>
+                                </td>
+                                <td>
+                                    <select name="communityId" id="communityId" class="form-control">
+                                        <option value="">-请选择小区-</option>
+                                        <option th:each="item,it : ${communityList}" th:text="${item.name}" th:value="${item.id}" th:selected="${#maps.containsKey(filters, 'communityId')} ? ${item.id} eq ${filters.communityId} : false">-选择小区-</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="houseTypeId" id="houseTypeId" class="form-control">
+                                        <option value="">-请选择户型-</option>
+                                        <option th:each="item,it : ${houseTypeList}" th:text="${item.name}" th:value="${item.id}" th:selected="${#maps.containsKey(filters, 'houseTypeId')} ? ${item.id} eq ${filters.houseTypeId} : false">-请选择-</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <select name="floorId" id="floorId" class="form-control">
+                                        <option value="">-请选择楼层-</option>
+                                        <option th:each="item,it : ${floorList}" th:text="${item.name}" th:value="${item.id}" th:selected="${#maps.containsKey(filters, 'floorId')} ? ${item.id} eq ${filters.floorId} : false">-请选择-</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="buildStructureId" id="buildStructureId" class="form-control">
+                                        <option value="">-请选择建筑结构-</option>
+                                        <option th:each="item,it : ${buildStructureList}" th:text="${item.name}" th:value="${item.id}" th:selected="${#maps.containsKey(filters, 'buildStructureId')} ? ${item.id} eq ${filters.buildStructureId} : false">-请选择-</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="directionId" id="directionId" class="form-control">
+                                        <option value="">-请选择朝向-</option>
+                                        <option th:each="item,it : ${directionList}" th:text="${item.name}" th:value="${item.id}" th:selected="${#maps.containsKey(filters, 'directionId')} ? ${item.id} eq ${filters.directionId} : false">-请选择-</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <select name="decorationId" id="decorationId" class="form-control">
+                                        <option value="">-请选择装修情况-</option>
+                                        <option th:each="item,it : ${decorationList}" th:text="${item.name}" th:value="${item.id}" th:selected="${#maps.containsKey(filters, 'decorationId')} ? ${item.id} eq ${filters.decorationId} : false">-请选择-</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="houseUseId" id="houseUseId" class="form-control">
+                                        <option value="">-请选择房屋用途-</option>
+                                        <option th:each="item,it : ${houseUseList}" th:text="${item.name}" th:value="${item.id}" th:selected="${#maps.containsKey(filters, 'houseUseId')} ? ${item.id} eq ${filters.houseUseId} : false">-请选择-</option>
+                                    </select>
+                                </td>
+                                <td>
+
+                                </td>
+                            </tr>
+                        </table>
+                        <div>
+                            <button type="submit" class="btn btn-sm btn-primary"> 搜索</button>
+                            <button type="button" class="btn btn-sm btn-primary create"> 新增</button>
+                            <button type="button" id="loading-example-btn" onclick="javascript:window.location.reload();" class="btn btn-white btn-sm">刷新</button>
+                        </div>
+                        <table class="table table-striped table-bordered table-hover dataTables-example">
+                            <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>房源名称</th>
+                                <th>总价：万元</th>
+                                <th>单价：元/平米</th>
+                                <th>建筑面积</th>
+                                <th>套内面积</th>
+                                <th>挂牌日期</th>
+                                <th>上次交易日期</th>
+                                <th>状态</th>
+                                <th width="160">操作 </th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr class="gradeX" th:each="item,it: ${page.list}">
+                                <td class="text-center" th:text="${it.count}">11</td>
+                                <td th:text="${item.name}">22</td>
+                                <td th:text="${item.totalPrice}">22</td>
+                                <td th:text="${item.unitPrice}">22</td>
+                                <td th:text="${item.buildArea}">22</td>
+                                <td th:text="${item.insideArea}">22</td>
+                                <td th:text="${item.listingDateString}">22</td>
+                                <td th:text="${item.lastTradeDateString}">22</td>
+                                <td th:text="${item.status == 1 ? '已发布' : '未发布'}"></td>
+                                <td class="text-center">
+                                    <a class="edit" th:attr="data-id=${item.id}">修改</a>
+                                    <a class="delete" th:attr="data-id=${item.id}">删除</a>
+                                    <a class="publish" th:if="${item.status} eq '0'" th:attr="data-id=${item.id},data-status=1">发布</a>
+                                    <a class="publish" th:if="${item.status} eq '1'" th:attr="data-id=${item.id},data-status=0">取消发布</a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="row" th:include="common/pagination :: pagination"></div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+<script th:inline="javascript">
+    $(function(){
+        $(".create").on("click",function () {
+            opt.openWin('/house/create','新增',630,430)
+        });
+        $(".edit").on("click",function () {
+            var id = $(this).attr("data-id");
+            opt.openWin('/house/edit/' + id,'修改',630,430);
+        });
+        $(".delete").on("click",function(){
+            var id = $(this).attr("data-id");
+            opt.confirm('/house/delete/'+id);
+        });
+        $(".publish").on("click",function () {
+            var id = $(this).attr("data-id");
+            var status = $(this).attr("data-status");
+            opt.confirm("/house/publish/" + id + "/" + status, "确定该操作吗？");
+        });
+    });
+</script>
+</body>
+</html>
+```
+
+
+
+#### 5.3.1.2创建create页面
+
+在web_admin模块创建页面：pages/house/create.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/house/save}" method="post" class="form-horizontal">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">小区：</label>
+                    <div class="col-sm-10">
+                        <select name="communityId" id="communityId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${communityList}" th:text="${item.name}" th:value="${item.id}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">房源名称：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="name" id="name" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">描述：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="description" id="description" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">总价：万元：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="totalPrice" id="totalPrice" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">单位价格：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="unitPrice" id="unitPrice" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">建筑面积：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="buildArea" id="buildArea" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">套内面积：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="insideArea" id="insideArea" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">户型：</label>
+                    <div class="col-sm-10">
+                        <select name="houseTypeId" id="houseTypeId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${houseTypeList}" th:text="${item.name}" th:value="${item.id}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">楼层：</label>
+                    <div class="col-sm-10">
+                        <select name="floorId" id="floorId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${floorList}" th:text="${item.name}" th:value="${item.id}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">建筑结构：</label>
+                    <div class="col-sm-10">
+                        <select name="buildStructureId" id="buildStructureId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${buildStructureList}" th:text="${item.name}" th:value="${item.id}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">朝向：</label>
+                    <div class="col-sm-10">
+                        <select name="directionId" id="directionId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${directionList}" th:text="${item.name}" th:value="${item.id}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">装修情况：</label>
+                    <div class="col-sm-10">
+                        <select name="decorationId" id="decorationId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${decorationList}" th:text="${item.name}" th:value="${item.id}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">房屋用途：</label>
+                    <div class="col-sm-10">
+                        <select name="houseUseId" id="houseUseId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${houseUseList}" th:text="${item.name}" th:value="${item.id}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">电梯比例：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="elevatorRatio" id="elevatorRatio" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">挂牌日期：</label>
+                    <div class="col-sm-10">
+                        <input name="listingDateString" type="date" class="form-control layer-date" placeholder="YYYY-MM-DD"/>
+                        <label class="laydate-icon"></label>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">上次交易日期：</label>
+                    <div class="col-sm-10">
+                        <input name="lastTradeDateString" type="date" class="form-control layer-date" placeholder="YYYY-MM-DD"/>
+                        <label class="laydate-icon"></label>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 5.3.1.3创建edit页面
+
+在web_admin模块创建页面：pages/house/edit.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/house/update}" method="post" class="form-horizontal">
+                <input type="hidden" name="id" th:value="${house.id}">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">小区：</label>
+                    <div class="col-sm-10">
+                        <select name="communityId" id="communityId" class="form-control">
+                            <option value="">-选择小区-</option>
+                            <option th:each="item,it : ${communityList}" th:text="${item.name}" th:value="${item.id}" th:selected="${item.id} eq ${house.communityId}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">房源名称：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="name" id="name" th:value="${house.name}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">描述：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="description" id="description" th:value="${house.description}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">总价：万元：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="totalPrice" id="totalPrice" th:value="${house.totalPrice}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">单位价格：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="unitPrice" id="unitPrice" th:value="${house.unitPrice}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">建筑面积：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="buildArea" id="buildArea" th:value="${house.buildArea}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">套内面积：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="insideArea" id="insideArea" th:value="${house.insideArea}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">户型：</label>
+                    <div class="col-sm-10">
+                        <select name="houseTypeId" id="houseTypeId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${houseTypeList}" th:text="${item.name}" th:value="${item.id}" th:selected="${item.id} eq ${house.houseTypeId}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">楼层：</label>
+                    <div class="col-sm-10">
+                        <select name="floorId" id="floorId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${floorList}" th:text="${item.name}" th:value="${item.id}" th:selected="${item.id} eq ${house.floorId}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">建筑结构：</label>
+                    <div class="col-sm-10">
+                        <select name="buildStructureId" id="buildStructureId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${buildStructureList}" th:text="${item.name}" th:value="${item.id}" th:selected="${item.id} eq ${house.buildStructureId}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">朝向：</label>
+                    <div class="col-sm-10">
+                        <select name="directionId" id="directionId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${directionList}" th:text="${item.name}" th:value="${item.id}" th:selected="${item.id} eq ${house.directionId}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">装修情况：</label>
+                    <div class="col-sm-10">
+                        <select name="decorationId" id="decorationId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${decorationList}" th:text="${item.name}" th:value="${item.id}" th:selected="${item.id} eq ${house.decorationId}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">房屋用途：</label>
+                    <div class="col-sm-10">
+                        <select name="houseUseId" id="houseUseId" class="form-control">
+                            <option value="">-请选择-</option>
+                            <option th:each="item,it : ${houseUseList}" th:text="${item.name}" th:value="${item.id}" th:selected="${item.id} eq ${house.houseUseId}">-请选择-</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">电梯比例：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="elevatorRatio" id="elevatorRatio" th:value="${house.elevatorRatio}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">挂牌日期：</label>
+                    <div class="col-sm-10">
+                        <input name="listingDateString" type="date" th:value="${house.listingDateString}" class="form-control layer-date" placeholder="YYYY-MM-DD"/>
+                        <label class="laydate-icon"></label>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">上次交易日期：</label>
+                    <div class="col-sm-10">
+                        <input name="lastTradeDateString" type="date" th:value="${house.lastTradeDateString}" class="form-control layer-date" placeholder="YYYY-MM-DD" />
+                        <label class="laydate-icon"></label>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group posf">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 5.3.1.4添加导航
+
+在frame/index文件中添加导航
+
+```html
+<li>
+   <a class="J_menuItem" th:href="@{/house}"data-index="0">房源管理</a>
+</li>
+```
+
+
+
+### 5.3.2dubobo服务端接口
+
+CommunityService新增内容
+
+```java
+/**
+ * 获取全部小区列表，House下拉选择框要使用
+ */
+List<Community> findAll();
+```
+
+HouseService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.House;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.HouseService
+ */
+public interface HouseService extends BaseService<House>{
+
+    /**
+     * 更新发布状态
+     */
+    void publish(Long id, Integer status);
+
+}
+
+```
+
+
+
+### 5.3.3dubobo服务提供者
+
+#### 5.3.3.1dao层
+
+CommunityDao新增内容
+
+```java
+/**
+ * 获取全部小区列表，House下拉选择框要使用
+ */
+List<Community> findAll();
+```
+
+CommunityMapper新增内容
+
+```xml
+<!--查询所有小区，House下拉选择框要使用⚠️-->
+<select id="findAll" resultType="Community">
+    <include refid="columns"></include>
+    where
+    is_deleted = 0
+    order by id desc
+</select>
+```
+
+HouseDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.House;
+import org.apache.ibatis.annotations.Param;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.HouseDao
+ */
+public interface HouseDao extends BaseDao<House>{
+
+    /**
+     * 更新发布状态
+     */
+    void publish(@Param("id") Long id,@Param("status") Integer status);
+
+}
+```
+
+HouseMapper
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.HouseDao">
+
+    <!-- 用于select查询公用抽取的列 -->
+    <sql id="columns">
+        select
+        id,community_id,name,description,total_price,unit_price,build_area,inside_area,house_type_id,floor_id,build_structure_id,direction_id,decoration_id,house_use_id,elevator_ratio,listing_date,last_trade_date,status,create_time,update_time,is_deleted
+        from hse_house
+    </sql>
+
+    <!--index页及查询结果数据-->
+    <select id="findPage" resultType="House">
+        <include refid="columns"/>
+        <where>
+            <if test="communityId != null and communityId != ''">
+                and community_id = #{communityId}
+            </if>
+            <if test="name != null and name != ''">
+                and name like CONCAT('%',#{name},'%')
+            </if>
+            <if test="houseTypeId != null and houseTypeId != ''">
+                and house_type_id = #{houseTypeId}
+            </if>
+            <if test="floorId != null and floorId != ''">
+                and floor_id = #{floorId}
+            </if>
+            <if test="buildStructureId != null and buildStructureId != ''">
+                and build_structure_id = #{buildStructureId}
+            </if>
+            <if test="directionId != null and directionId != ''">
+                and direction_id = #{directionId}
+            </if>
+            <if test="decorationId != null and decorationId != ''">
+                and decoration_id = #{decorationId}
+            </if>
+            <if test="houseUseId != null and houseUseId != ''">
+                and house_use_id = #{houseUseId}
+            </if>
+            and is_deleted = 0
+        </where>
+        order by id desc
+    </select>
+
+    <!--新增实例-->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into hse_house (
+        community_id ,
+        name ,
+        description ,
+        total_price ,
+        unit_price ,
+        build_area ,
+        inside_area ,
+        house_type_id ,
+        floor_id ,
+        build_structure_id ,
+        direction_id ,
+        decoration_id ,
+        house_use_id ,
+        elevator_ratio ,
+        listing_date ,
+        last_trade_date
+        ) values (
+        #{communityId} ,
+        #{name} ,
+        #{description} ,
+        #{totalPrice} ,
+        #{unitPrice} ,
+        #{buildArea} ,
+        #{insideArea} ,
+        #{houseTypeId} ,
+        #{floorId} ,
+        #{buildStructureId} ,
+        #{directionId} ,
+        #{decorationId} ,
+        #{houseUseId} ,
+        #{elevatorRatio} ,
+        #{listingDate} ,
+        #{lastTradeDate}
+        )
+    </insert>
+
+    <!--删除实例-->
+    <update id="delete">
+        update hse_house set
+        is_deleted = 1
+        where
+        id = #{id}
+    </update>
+
+    <!--根据id获取实例，修改回显-->
+    <select id="getById" resultType="House">
+        <include refid="columns" />
+        where
+        id = #{id}
+    </select>
+
+    <!--修改实例-->
+    <update id="update">
+        update hse_house
+        <set>
+            <if test="communityId!=null and communityId!=''">
+                community_Id=#{communityId},
+            </if>
+            <if test="name!=null and name!=''">
+                name=#{name},
+            </if>
+            <if test="description!=null and description!=''">
+                description=#{description},
+            </if>
+            <if test="totalPrice!=null and totalPrice!=''">
+                total_Price=#{totalPrice},
+            </if>
+            <if test="unitPrice!=null and unitPrice!=''">
+                unit_Price=#{unitPrice},
+            </if>
+            <if test="buildArea!=null and buildArea!=''">
+                build_Area=#{buildArea},
+            </if>
+            <if test="insideArea!=null and insideArea!=''">
+                inside_Area=#{insideArea},
+            </if>
+            <if test="houseTypeId!=null and houseTypeId!=''">
+                house_Type_Id=#{houseTypeId},
+            </if>
+            <if test="floorId!=null and floorId!=''">
+                floor_Id=#{floorId},
+            </if>
+            <if test="buildStructureId!=null and buildStructureId!=''">
+                build_Structure_Id=#{buildStructureId},
+            </if>
+            <if test="directionId!=null and directionId!=''">
+                direction_Id=#{directionId},
+            </if>
+            <if test="decorationId!=null and decorationId!=''">
+                decoration_Id=#{decorationId},
+            </if>
+            <if test="houseUseId!=null and houseUseId!=''">
+                house_Use_Id=#{houseUseId},
+            </if>
+            <if test="elevatorRatio!=null and elevatorRatio!=''">
+                elevator_Ratio=#{elevatorRatio},
+            </if>
+            <if test="listingDateString!=null and listingDateString!=''">
+                listing_Date=#{listingDateString},
+            </if>
+            <if test="lastTradeDateString!=null and lastTradeDateString!=''">
+                last_Trade_Date=#{lastTradeDateString},
+            </if>
+        </set>
+        where id=#{id}
+    </update>
+
+    <!--更新发布状态-->
+    <update id="publish">
+        update hse_house set status=#{status} where id=#{id}
+    </update>
+
+</mapper>
+```
+
+
+
+#### 5.3.3.2service层
+
+CommunityServiceImpl新增内容
+
+```java
+/**
+ * 获取全部小区列表，House下拉选择框要使用
+ */
+@Override
+public List<Community> findAll() {
+    return communityDao.findAll();
+}
+```
+
+HouseServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.dao.HouseDao;
+import com.atguigu.entity.House;
+import com.atguigu.service.HouseService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+
+
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.HouseServiceImpl
+ */
+@DubboService
+public class HouseServiceImpl extends BaseServiceImpl<House> implements HouseService {
+
+    @Autowired
+    private HouseDao houseDao;
+
+    @Override
+    public BaseDao<House> getEntityDao() {
+        return houseDao;
+    }
+    
+
+    /**
+     * 更新发布状态
+     */
+    @Override
+    public void publish(Long id, Integer status) {
+        houseDao.publish(id,status);
+    }
+}
+```
+
+
+
+### 5.3.4dubobo服务消费者
+
+HouseController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.*;
+import com.atguigu.service.CommunityService;
+import com.atguigu.service.DictService;
+import com.atguigu.service.HouseService;
+import com.github.pagehelper.PageInfo;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.ModelMap;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.HouseController
+ */
+@Controller
+@RequestMapping(value = "/house")
+public class HouseController extends BaseController {
+
+
+    @DubboReference
+    private HouseService houseService;
+
+    @DubboReference
+    private DictService dictService;
+
+    @DubboReference
+    private CommunityService communityService;
+
+    private final static String LIST_ACTION = "redirect:/house";
+    private final static String PAGE_INDEX = "house/index";
+    private final static String PAGE_SHOW = "house/show";
+    private final static String PAGE_CREATE = "house/create";
+    private final static String PAGE_EDIT = "house/edit";
+    private final static String PAGE_SUCCESS = "common/success";
+
+
+    /**
+     * 处理/house请求路径，跳转到index页面，展示搜索结果
+     */
+    @RequestMapping
+    public String index(Map map, HttpServletRequest request) {
+        Map<String, Object> filters = getFilters(request);
+        PageInfo<House> page = houseService.findPage(filters);
+
+        //将PageInfo分页对象放到请求域，里面有分页信息和搜索结果
+        map.put("page", page);
+        //搜索数据回显
+        map.put("filters",filters);
+
+        //为下拉框准备数据
+        getSource(map);
+
+        return PAGE_INDEX;
+    }
+
+
+    /**
+     * 处理/create请求路径，进入新增页面
+     */
+    @RequestMapping("/create")
+    public String create(Map map){
+        //为下拉框准备数据
+        getSource(map);
+        return PAGE_CREATE;
+    }
+
+
+    /**
+     * 处理/save请求路径，保存新增
+     */
+    @RequestMapping("/save")
+    public String save(House house) {
+        houseService.insert(house);
+
+        return PAGE_SUCCESS;
+    }
+
+
+    /**
+     * 处理/edit/id请求路径，到编辑修改页面
+     */
+    @RequestMapping("/edit/{houseId}")
+    public String edit(@PathVariable Long houseId,Map map){
+        //为下拉框准备数据
+        getSource(map);
+        House house = houseService.getById(houseId);
+        map.put("house",house);
+        return PAGE_EDIT;
+    }
+
+
+
+    /**
+     * 处理/delete请求路径，删除数据
+     */
+    @RequestMapping("/delete/{id}")
+    public String delete(@PathVariable Long id) {
+        houseService.delete(id);
+        return LIST_ACTION;
+    }
+
+
+    /**
+     * 保处理/update请求路径
+     */
+    @RequestMapping("/update")
+    public String update(House house){
+        houseService.update(house);
+        return PAGE_SUCCESS;
+    }
+
+
+    /**
+     * 处理/publish/id/status请求路径，发布房源
+     */
+    @RequestMapping("/publish/{id}/{status}")
+    public String publish(@PathVariable Long id,@PathVariable Integer status) {
+        houseService.publish(id, status);
+        return LIST_ACTION;
+    }
+
+
+    /**
+     * 封装所有的下拉选择框，多个页面都要使用
+     */
+    public void getSource(Map map){
+        //需要所有的小区
+        List<Community> communityList = communityService.findAll();
+        //所有的户型
+        List<Dict> houseTypeList = dictService.findListByDictCode("houseType");
+        //所有的装修情况
+        List<Dict> decorationList = dictService.findListByDictCode("decoration");
+        //所有的楼层
+        List<Dict> floorList = dictService.findListByDictCode("floor");
+        //所有的朝向
+        List<Dict> directionList = dictService.findListByDictCode("direction");
+        //所有的建筑结构
+        List<Dict> buildStructureList = dictService.findListByDictCode("buildStructure");
+        //所有的房屋用途
+        List<Dict> houseUseList = dictService.findListByDictCode("houseUse");
+
+        map.put("communityList",communityList);
+        map.put("houseTypeList",houseTypeList);
+        map.put("decorationList",decorationList);
+        map.put("floorList",floorList);
+        map.put("directionList",directionList);
+        map.put("buildStructureList",buildStructureList);
+        map.put("houseUseList",houseUseList);
+    }
+
+
+    /**
+     * 页面详情
+     */
+    @RequestMapping("/show/{id}")
+    public String show(Map map,@PathVariable Long id) {
+        //房源详细信息
+        //ServiceImpl实现类中重写getById，有些属性只有id不满足要求，需要从字典中获取name⚠️
+        House house = houseService.getById(id);
+        map.put("house",house);
+
+        //房源小区信息
+        Community community = communityService.getById(house.getCommunityId());
+        map.put("community",community);
+
+        return PAGE_SHOW;
+    }
+}
+```
+
+
+
