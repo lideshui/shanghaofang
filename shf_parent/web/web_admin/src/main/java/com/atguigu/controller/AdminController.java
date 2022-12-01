@@ -2,14 +2,20 @@ package com.atguigu.controller;
 
 import com.atguigu.entity.Admin;
 import com.atguigu.service.AdminService;
+import com.atguigu.util.QiniuUtil;
 import com.github.pagehelper.PageInfo;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+
 import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.util.Map;
+import java.util.UUID;
 
 
 /**
@@ -25,6 +31,7 @@ public class AdminController extends BaseController {
     private final static String PAGE_EDIT = "admin/edit";
     private final static String PAGE_SUCCESS = "common/success";
     private final static String LIST_ACTION = "redirect:/admin";
+    private final static String PAGE_UPLOED_SHOW = "admin/upload";
 
     @DubboReference
     private AdminService adminService;
@@ -95,5 +102,32 @@ public class AdminController extends BaseController {
         //不是在iframe窗体内执行操作，直接重定向即可
         return LIST_ACTION;
     }
+
+    /**
+     * 处理/uploadShow/id请求，跳转到头像上传页面
+     */
+    @RequestMapping("/uploadShow/{adminId}")
+    public String uploadShow(@PathVariable Long adminId,Map map){
+        map.put("adminId",adminId);
+        return PAGE_UPLOED_SHOW;
+    }
+
+    /**
+     * 处理/upload请求，上传图片url到数据库，上传图片到七牛云
+     */
+    @RequestMapping("/upload")
+    public String upload(Long adminId, @RequestParam("file") MultipartFile file) throws IOException {
+        //1. 将图片上传到七牛云
+        String fileName= UUID.randomUUID().toString();
+        QiniuUtil.upload2Qiniu(file.getBytes(),fileName);
+        //2. 对当前用户做修改操作，将head_url进行修改
+        Admin admin=new Admin();
+        admin.setId(adminId);
+        //使用七牛云空间域名+图片名字拼凑图片的完整URL
+        admin.setHeadUrl("http://rm5n3wdxr.hb-bkt.clouddn.com/"+fileName);
+        adminService.update(admin);
+        return PAGE_SUCCESS;
+    }
+
 
 }

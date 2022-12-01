@@ -10403,3 +10403,99 @@ public class HouseImageController {
 </html>
 ```
 
+
+
+## 6.4用户头像上传
+
+### 6.4.1添加JS触发事件
+
+admin/index.html中添加上传头像按钮
+
+```html
+<a class="upload" th:attr="data-id=${item.id}">上传头像</a>
+```
+
+
+admin/index.html中添加点击上传头像的js触发事件
+
+```javascript
+$(".upload").on("click",function(){
+    var id = $(this).attr("data-id");
+    opt.openWin('/admin/uploadShow/'+id,'上传头像',580,300);
+});
+```
+
+
+
+### 6.4.2创建上传页面
+
+admin/upload.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/admin/upload}" method="post" enctype="multipart/form-data" class="form-horizontal">
+                <input type="hidden" name="adminId" th:value="${adminId}">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">上传头像：</label>
+                    <div class="col-sm-10">
+                        <input type="file" name="file" id="file" class="form-control" readonly/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+### 6.4.3添加服务器端代码
+
+AdminController添加内容
+
+```java
+		private final static String PAGE_UPLOED_SHOW = "admin/upload";
+
+		/**
+     * 处理/uploadShow/id请求，跳转到头像上传页面
+     */
+    @RequestMapping("/uploadShow/{adminId}")
+    public String uploadShow(@PathVariable Long adminId,Map map){
+        map.put("adminId",adminId);
+        return PAGE_UPLOED_SHOW;
+    }
+
+    /**
+     * 处理/upload请求，上传图片url到数据库，上传图片到七牛云
+     */
+    @RequestMapping("/upload")
+    public String upload(Long adminId, @RequestParam("file") MultipartFile file) throws IOException {
+        //1. 将图片上传到七牛云
+        String fileName= UUID.randomUUID().toString();
+        QiniuUtil.upload2Qiniu(file.getBytes(),fileName);
+        //2. 对当前用户做修改操作，将head_url进行修改
+        Admin admin=new Admin();
+        admin.setId(adminId);
+        admin.setHeadUrl("http://rm5dtfln6.hn-bkt.clouddn.com/"+fileName);
+        adminService.update(admin);
+        return PAGE_SUCCESS;
+    }
+```
+
+
+
