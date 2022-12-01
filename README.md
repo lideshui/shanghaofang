@@ -9875,4 +9875,531 @@ houseUser/edit.html
 
 
 
-# 
+# 6 图片上传
+
+## 6.1图片存储方案
+
+在实际开发中，我们会有很多处理不同功能的服务器。例如：
+
+- 应用服务器：负责部署我们的应用
+- 数据库服务器：运行我们的数据库
+- 文件服务器：负责存储用户上传文件的服务器
+
+常见的图片存储方案：
+
+- 方案一：使用nginx搭建图片服务器
+- 方案二：使用开源的分布式文件存储系统，例如Fastdfs、HDFS等
+- 方案三：使用云存储，例如阿里云、七牛云等
+
+
+
+## 6.2七牛云村存储
+
+七牛云存储SDK文档：https://developer.qiniu.com/kodo/1239/java
+
+### 6.2.1添加依赖
+
+shf-parent添加依赖管理
+
+```xml
+<!--放到properties标签中的jar包版本管理-->
+<qiniuyun.version>7.7.0</qiniuyun.version>
+
+<!--七牛云服务平台，第三方服务（图片上传）-->
+<dependency>
+  <groupId>com.qiniu</groupId>
+  <artifactId>qiniu-java-sdk</artifactId>
+  <version>${qiniuyun.version}</version>
+</dependency>
+```
+
+common-util引入依赖
+
+```xml
+<!--七牛云服务平台，第三方服务（图片上传）-->
+<dependency>
+    <groupId>com.qiniu</groupId>
+    <artifactId>qiniu-java-sdk</artifactId>
+</dependency>
+```
+
+
+
+### 6.2.2文件上传
+
+根据七牛云存储SDK文档找到对应方法
+
+```java
+package atguigu;
+
+import com.google.gson.Gson;
+import com.qiniu.common.QiniuException;
+import com.qiniu.http.Response;
+import com.qiniu.storage.BucketManager;
+import com.qiniu.storage.Configuration;
+import com.qiniu.storage.Region;
+import com.qiniu.storage.UploadManager;
+import com.qiniu.storage.model.DefaultPutRet;
+import com.qiniu.util.Auth;
+import org.junit.Test;
+
+/**
+ * @Author chenxin
+ * @date 2022/11/30
+ * @Version 1.0
+ * 测试成功，测试代码是可以删除，我是教学，代码我就不删，我把@Test注解删除
+ *  在安装的时候，会自动执行单元测试
+ */
+
+public class QiNiuTest {
+    /**
+     * 测试文件上传
+     *  现在只是测试，咱们写尚好房，肯定要部署服务器
+     */
+
+
+    public void testUplod(){
+        //构造一个带指定 Region 对象的配置类   区域的选择
+        Configuration cfg = new Configuration(Region.region1());
+        // 指定分片上传版本
+        //cfg.resumableUploadAPIVersion = Configuration.ResumableUploadAPIVersion.V2;
+        //...其他参数参考类注释
+        UploadManager uploadManager = new UploadManager(cfg);
+        //...生成上传凭证，然后准备上传
+        //java代码，首先需要找到你的七牛云账号：每个账号最少会有一对秘钥(账号的唯一标识)
+        String accessKey = "FSfYKp-U1f9PWgUtZHPISP8yMCv4wmk6H1aBusF5";
+        String secretKey = "dzAsEo6oF0k0Hubvh3H5bCYnYki8hi9fPODWaSln";
+        //还需要指定账号下的空间名称(一个账号有可能有多个空间，你到底上传到哪个空间)
+        String bucket = "studyshf";
+        //如果是Windows情况下，格式是 D:\\qiniu\\test.png
+        //指定要上传图片的位置
+        String localFilePath = "/Users/shuaigouzi/images/小狐狸和小王子看日落.png";
+        //默认不指定key的情况下，以文件内容的hash值作为文件名
+        String key = null;
+
+        Auth auth = Auth.create(accessKey, secretKey);
+        String upToken = auth.uploadToken(bucket);
+
+        try {
+            Response response = uploadManager.put(localFilePath, key, upToken);
+            //解析上传成功的结果
+            DefaultPutRet putRet = new Gson().fromJson(response.bodyString(), DefaultPutRet.class);
+            System.out.println(putRet.key);//图片到七牛云上的名字(当前图片的唯一标识，删除也是根据这个名字删)
+            System.out.println(putRet.hash);
+        } catch (QiniuException ex) {
+            Response r = ex.response;
+            System.err.println(r.toString());
+            try {
+                System.err.println(r.bodyString());
+            } catch (QiniuException ex2) {
+                //ignore
+            }
+        }
+
+    }
+
+}
+```
+
+
+
+### 6.2.3文件删除
+
+根据七牛云存储SDK文档找到对应方法
+
+```java
+package atguigu;
+
+import com.google.gson.Gson;
+import com.qiniu.common.QiniuException;
+import com.qiniu.http.Response;
+import com.qiniu.storage.BucketManager;
+import com.qiniu.storage.Configuration;
+import com.qiniu.storage.Region;
+import com.qiniu.storage.UploadManager;
+import com.qiniu.storage.model.DefaultPutRet;
+import com.qiniu.util.Auth;
+import org.junit.Test;
+
+
+public class QiNiuTest {
+
+    public void testDelete(){
+        //构造一个带指定 Region 对象的配置类   区域也要选择华南
+        Configuration cfg = new Configuration(Region.region2());
+        //...其他参数参考类注释
+
+        //首先找到删除的账号   一对秘钥去锁定
+        String accessKey = "FSfYKp-U1f9PWgUtZHPISP8yMCv4wmk6H1aBusF5";
+        String secretKey = "dzAsEo6oF0k0Hubvh3H5bCYnYki8hi9fPODWaSln";
+        //还需要找到空间的名字
+        String bucket = "studyshf";
+        //图片的名字
+        String key = "FmGgq1zqJEOCvqiXdp7GKrdCPKnc";
+
+        Auth auth = Auth.create(accessKey, secretKey);
+        BucketManager bucketManager = new BucketManager(auth, cfg);
+        try {
+            bucketManager.delete(bucket, key);
+        } catch (QiniuException ex) {
+            //如果遇到异常，说明删除失败
+            System.err.println(ex.code());
+            System.err.println(ex.response.toString());
+        }
+    }
+}
+```
+
+
+
+### 6.2.4封装工具类
+
+为了方便操作七牛云存储服务，我们可以将官方提供的案例简单改造成一个工具类，在我们的项目中直接使用此工具类来操作就可以
+
+封装工具类时，必须配置准确云存储信息，特别是SKD信息、存储库名称和片区机房参数⚠️
+
+将该工具类放到`common-util`模块的`com.atguigu.util`包中，通过依赖传递其他模块都可使用⚠️
+
+```java
+package com.atguigu.util;
+
+import com.google.gson.Gson;
+import com.qiniu.common.QiniuException;
+import com.qiniu.http.Response;
+import com.qiniu.storage.BucketManager;
+import com.qiniu.storage.Configuration;
+import com.qiniu.storage.Region;
+import com.qiniu.storage.UploadManager;
+import com.qiniu.storage.model.DefaultPutRet;
+import com.qiniu.util.Auth;
+
+/**
+ * 七牛云工具类
+ */
+public class QiniuUtil {
+
+    public  static String accessKey = "FSfYKp-U1f9PWgUtZHPISP8yMCv4wmk6H1aBusF5";
+    public  static String secretKey = "dzAsEo6oF0k0Hubvh3H5bCYnYki8hi9fPODWaSln";
+    public  static String bucket = "studyshf";
+
+    public static void upload2Qiniu(String filePath,String fileName){
+        //构造一个带指定Region对象的配置类，要根据机房配置不同的参数，查看文档⚠️
+        Configuration cfg = new Configuration(Region.huabei());
+        UploadManager uploadManager = new UploadManager(cfg);
+        Auth auth = Auth.create(accessKey, secretKey);
+        String upToken = auth.uploadToken(bucket);
+        try {
+            Response response = uploadManager.put(filePath, fileName, upToken);
+            //解析上传成功的结果
+            DefaultPutRet putRet = new Gson().fromJson(response.bodyString(), DefaultPutRet.class);
+        } catch (QiniuException ex) {
+            Response r = ex.response;
+            try {
+                System.err.println(r.bodyString());
+            } catch (QiniuException ex2) {
+                //ignore
+            }
+        }
+    }
+
+    //上传文件
+    public static void upload2Qiniu(byte[] bytes, String fileName){
+        //构造一个带指定Region对象的配置类，要根据机房配置不同的参数，查看文档⚠️
+        Configuration cfg = new Configuration(Region.huabei());
+        //...其他参数参考类注释
+        UploadManager uploadManager = new UploadManager(cfg);
+
+        //默认不指定key的情况下，以文件内容的hash值作为文件名
+        String key = fileName;
+        Auth auth = Auth.create(accessKey, secretKey);
+        String upToken = auth.uploadToken(bucket);
+        try {
+            Response response = uploadManager.put(bytes, key, upToken);
+            //解析上传成功的结果
+            DefaultPutRet putRet = new Gson().fromJson(response.bodyString(), DefaultPutRet.class);
+            System.out.println(putRet.key);
+            System.out.println(putRet.hash);
+        } catch (QiniuException ex) {
+            Response r = ex.response;
+            System.err.println(r.toString());
+            try {
+                System.err.println(r.bodyString());
+            } catch (QiniuException ex2) {
+                //ignore
+            }
+        }
+    }
+
+    //删除文件
+    public static void deleteFileFromQiniu(String fileName){
+        //构造一个带指定Region对象的配置类，要根据机房配置不同的参数，查看文档⚠️
+        Configuration cfg = new Configuration(Region.huabei());
+        String key = fileName;
+        Auth auth = Auth.create(accessKey, secretKey);
+        BucketManager bucketManager = new BucketManager(auth, cfg);
+        try {
+            bucketManager.delete(bucket, key);
+        } catch (QiniuException ex) {
+            //如果遇到异常，说明删除失败
+            System.err.println(ex.code());
+            System.err.println(ex.response.toString());
+        }
+    }
+}
+```
+
+
+
+
+
+## 6.3房源图片上传
+
+### 6.3.1添加触发上传事件
+
+house/show.html页面添加js响应事件
+
+```javascript
+$("#upload1").on("click",function(){
+    opt.openWin('/houseImage/uploadShow/[[${house.id}]]/1','上传房源图片',580,430);
+});
+$("#upload2").on("click",function(){
+    opt.openWin('/houseImage/uploadShow/[[${house.id}]]/2','上传房产图片',580,430);
+});
+$(".deleteImages").on("click",function(){
+    var id = $(this).attr("data-id");
+    opt.confirm('/houseImage/delete/[[${house.id}]]/'+id);
+});
+```
+
+### 
+
+### 6.3.2配置上传解析器
+
+在服务消费者端`web_admin`的spring-mvc.xml中配置上传解析器
+
+```xml
+    <!--配置上传解析器-->
+    <!--"maxUploadSize":表示文件大小，图片的大小-->
+    <!--"maxInMemorySize" ：图片加载到内存当中的大小 长 * 宽 * 像素字节数(argb8888,rgb565,argb4444)-->
+    <!--"defaultEncoding":UTF-8-->
+    <bean id="multipartResolver"
+          class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+        <!-- 设定文件上传的最大值为100MB，100*1024*1024 -->
+        <property name="maxUploadSize" value="104857600" />
+        <!-- 设定文件上传时写入内存的最大值，如果小于这个参数不会生成临时文件，默认为10240 -->
+        <property name="maxInMemorySize" value="4096" />
+        <!-- 设定默认编码 -->
+        <property name="defaultEncoding" value="UTF-8"/>
+    </bean>
+```
+
+
+
+### 6.3.3添加服务器端代码
+
+对web服务器端而言，获取的是图片URL，传递的却是图片字节数据
+
+#### 6.3.3.1dao层
+
+HouseImageMapper添加内容
+
+```xml
+<!--使用七牛云上传房源房产图-->
+<insert id="insert">
+    insert into hse_house_image(house_id,image_name,image_url,type)
+    values(#{houseId},#{imageName},#{imageUrl},#{type})
+</insert>
+
+<!--删除房源房产图-->
+<update id="delete">
+    update hse_house_image set is_deleted=1 where id=#{id}
+</update>
+
+<!--获取传房源房产图-->
+<select id="getById" resultType="houseImage">
+    select * from hse_house_image where id=#{id} and is_deleted=0
+</select>
+```
+
+
+
+#### 6.3.3.2controller层
+
+HouseImageController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.HouseImage;
+import com.atguigu.result.Result;
+import com.atguigu.service.HouseImageService;
+import com.atguigu.util.QiniuUtil;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.UUID;
+
+
+@Controller
+@RequestMapping("/houseImage")
+public class HouseImageController {
+
+    @DubboReference
+    private HouseImageService houseImageService;
+
+    private final static String LIST_ACTION = "redirect:/house/show/";
+    private final static String PAGE_UPLOED_SHOW = "house/upload";
+
+    /**
+     * 处理/uploadShow/houseId/type请求，跳转到上传页面
+     * 通过参数决定传递哪个房源的房源图或者房产图
+     */
+    @RequestMapping("/uploadShow/{houseId}/{type}")
+    public String uploadShow(@PathVariable Long houseId, @PathVariable Integer type, Map map) {
+        //参数决定传递的房源和传递的图片类型，放到请求域，发异步请求需要
+        map.put("houseId", houseId);
+        map.put("type", type);
+        return PAGE_UPLOED_SHOW;
+    }
+
+
+    /**
+     * 处理/upload/houseId/type请求，图片上传操作
+     * 通过参数决定传递哪个房源的房源图或房产图
+     */
+    @RequestMapping("/upload/{houseId}/{type}")
+    @ResponseBody
+    public Result upload(
+            @PathVariable Long houseId,
+            @PathVariable Integer type,
+            //必须叫file，插件里写死了，可能有多个，所以用数组
+            @RequestParam("file") MultipartFile[] files) throws IOException {
+        //第一步：先将图片循环上传到七牛云服务器
+        for (MultipartFile file : files) {
+
+            //循环的file就是需要上传的文件，使用UUID随机为其生成个名字
+            String fileName = UUID.randomUUID().toString();
+
+            //将file转换为byte数组，使用七牛云传递byte[]的方式上传图片
+            QiniuUtil.upload2Qiniu(file.getBytes(), fileName);
+
+            //第二步：需要在数据库内添加记录，设置了house_id，图片名字，图片路径，type
+            HouseImage houseImage = new HouseImage();
+            houseImage.setHouseId(houseId);
+            houseImage.setImageName(fileName);
+
+            //使用七牛云空间域名+图片名字拼凑图片的完整URL
+            houseImage.setImageUrl("http://rm5n3wdxr.hb-bkt.clouddn.com/" + fileName);
+            houseImage.setType(type);
+
+            houseImageService.insert(houseImage);
+        }
+        return Result.ok();
+    }
+
+
+    /**
+     * 处理/delete/houseId/houseImageId请求，删除图片
+     * 1.从七牛云删除可以做或不做
+     * 2.从数据库将图片信息删除(逻辑删除,并非真正删除)
+     * 3.删除完成后回到详情页面
+     */
+    @RequestMapping("/delete/{houseId}/{houseImageId}")
+    public String delete(@PathVariable Long houseId, @PathVariable Long houseImageId) {
+        //1. 从七牛云将图片删除，这一步可以不做，实现删除记录之类功能
+        HouseImage houseImage = houseImageService.getById(houseImageId);
+        QiniuUtil.deleteFileFromQiniu(houseImage.getImageName());
+        //2. 从数据库将图片信息删除(逻辑删除)
+        houseImageService.delete(houseImageId);
+        //3. 删除完成重定向到详情页面
+        return LIST_ACTION + houseId;
+    }
+}
+```
+
+
+
+### 6.3.4创建上传页面
+
+创建页面：house/upload.html
+
+页面模版存放位置：hplus-master/form_webuploader.html
+
+说明：
+
+- BASE_URL为WebUploader组件flash的地址，通过flash实现的异步上传
+- BASE_UPLOAD为我们的上传地址，即上面定义的controller上传方法
+- webuploader-demo.js为批量上传的实现代码，替换webuploader-demo.js文件85行上传地址为：server: BASE_UPLOAD⚠️
+- 在代码正确的前提下，若多次传图失败，尝试为web服务器换个端口再启动。配置server: BASE_UPLOAD时可多设置些传输图片的大小⚠️
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<link rel="stylesheet" type="text/css" th:href="@{/static/css/plugins/webuploader/webuploader.css}">
+<link rel="stylesheet" type="text/css" th:href="@{/static/css/demo/webuploader-demo.css}">
+<script th:src="@{/static/js/plugins/webuploader/webuploader.min.js}"></script>
+<!--修改这个js文件内的内容：85行-->
+<script th:src="@{/static/js/demo/webuploader-demo.js}"></script>
+<script type="text/javascript">
+    // 添加全局站点信息 swf文件路径，加载上传成功的进度条等样式
+    var BASE_URL = '/static/js/plugins/webuploader';
+    //自定义文件接收服务端：这里是定义传到服务器上的Controller路径
+    //传递图片步骤：第一步：先传到web服务器，第二步：然后由java代码再传到云服务器
+    //webuploader-demo.js为批量上传的实现代码，我们直接使用，替换webuploader-demo.js文件第85行
+    var BASE_UPLOAD = '/houseImage/upload/[[${houseId}]]/[[${type}]]';
+</script>
+<body class="gray-bg">
+<div class="row">
+    <div class="col-sm-9">
+        <div class="wrapper wrapper-content animated fadeInUp">
+            <div class="ibox">
+                <div class="ibox-content">
+                    <div class="row">
+                        <div class="ibox-content">
+                            <div class="page-container" id="uploadShow">
+                                <p>请选择需要上传的图片</p>
+                                <div id="uploader" class="wu-example">
+                                    <div class="queueList">
+                                        <div id="dndArea" class="placeholder">
+                                            <div id="filePicker"></div>
+                                            <p>支持批量上传</p>
+                                        </div>
+                                    </div>
+                                    <div class="statusBar" style="display:none;">
+                                        <div class="progress">
+                                            <span class="text">0%</span>
+                                            <span class="percentage"></span>
+                                        </div>
+                                        <div class="info"></div>
+                                        <div class="btns">
+                                            <div id="filePicker2"></div>
+                                            <!--异步上传-->
+                                            <div class="uploadBtn">开始上传</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-4 col-sm-offset-2">
+                            <button class="btn btn-primary" type="button" onclick="opt.closeWin(true);">确定</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+

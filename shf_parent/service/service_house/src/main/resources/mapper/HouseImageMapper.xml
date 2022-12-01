@@ -10,4 +10,20 @@
         select * from hse_house_image where house_id=#{houseId} and type=#{type} and is_deleted=0
     </select>
 
+    <!--使用七牛云上传房源房产图-->
+    <insert id="insert">
+        insert into hse_house_image(house_id,image_name,image_url,type)
+        values(#{houseId},#{imageName},#{imageUrl},#{type})
+    </insert>
+
+    <!--删除房源房产图-->
+    <update id="delete">
+        update hse_house_image set is_deleted=1 where id=#{id}
+    </update>
+
+    <!--获取传房源房产图-->
+    <select id="getById" resultType="houseImage">
+        select * from hse_house_image where id=#{id} and is_deleted=0
+    </select>
+
 </mapper>
