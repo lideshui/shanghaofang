@@ -11,9 +11,9 @@ import java.util.Map;
  */
 public interface RoleDao {
     /**
-     * @Description: index页搜索条件，可替代查询所有
+     * @Description: 搜索结果分页显示
      */
-    List<Role> findRole(Map<String,Object> filters);
+    List<Role> findPage(Map<String, Object> filters);
 
     /**
      * @Description: 插入一条数据

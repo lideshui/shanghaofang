@@ -2,6 +2,7 @@ package com.atguigu.controller;
 
 import com.atguigu.entity.Role;
 import com.atguigu.service.RoleService;
+import com.github.pagehelper.PageInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,24 +32,25 @@ public class RoleController {
     private RoleService roleService;
 
     /**
-     * @Description: 处理/role请求，根据条件搜索，代替findAll
+     * @Description: 处理/role请求，搜索处理、分页处理
      */
     @RequestMapping
-    public String findRole(
-            Map map,
-            HttpServletRequest request
-    ) {
-        Map<String, Object> filters =  getFilters(request);
-        List<Role> list = roleService.findRole(filters);
-        //向请求域添加搜索结果数据
-        map.put("list", list);
+    public String index(Map map, HttpServletRequest request) {
+        //处理请求参数
+        Map<String,Object> filters = getFilters(request);
+        //传递参数到service层，拿到查询结果并构建分页对象
+        PageInfo<Role> page = roleService.findPage(filters);
+
+        //将PageInfo分页对象放到请求域，里面有分页信息和搜索结果
+        map.put("page", page);
         //搜索内容的回显
         map.put("filters", filters);
+
         return PAGE_INDEX;
     }
 
     /**
-     * @Description: 将请求中的搜索条件分装成map
+     * @Description: 封装页面提交的分页参数及搜索条件
      */
     private Map<String, Object> getFilters(HttpServletRequest request) {
         Enumeration<String> paramNames = request.getParameterNames();
@@ -65,6 +67,15 @@ public class RoleController {
                 }
             }
         }
+
+        //设置默认页数和分页显示数据的数量
+        if(!filters.containsKey("pageNum")) {
+            filters.put("pageNum", 1);
+        }
+        if(!filters.containsKey("pageSize")) {
+            filters.put("pageSize", 3);
+        }
+
         return filters;
     }
 

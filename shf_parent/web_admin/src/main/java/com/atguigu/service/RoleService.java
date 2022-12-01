@@ -1,6 +1,8 @@
 package com.atguigu.service;
 
 import com.atguigu.entity.Role;
+import com.github.pagehelper.PageInfo;
+
 import java.util.List;
 import java.util.Map;
 
@@ -10,9 +12,9 @@ import java.util.Map;
  */
 public interface RoleService {
     /**
-     * @Description: index页搜索条件，可替代查询所有
+     * @Description: 搜索结果分页显示
      */
-    List<Role> findRole(Map<String,Object> filters);
+    PageInfo<Role> findPage(Map<String, Object> filters);
 
     /**
      * @Description: 角色新增
