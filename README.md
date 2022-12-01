@@ -1002,3 +1002,935 @@ Maven → shf-parent (root)  → Lifecycle → install
 Maven → web_admin → Plugins → jetty → jetty:run
 
 访问：http://localhost:8000/（8000是web_admin.pom文件中设置的jetty服务的端口）
+
+
+
+
+
+# 2 用户角色管理
+
+## 2.1集成后台前端框架
+
+后台前端框架模板：Hplus
+
+下载地址：https://gitee.com/hplus_admin/hplus
+
+### 2.1.1添加框架静态资源
+
+下载框架，在web_admin模块webapp下创建static目录存放从Hplus模版中拷贝的静态资源：
+
+webapp/static目录下的资源（必须叫static，开发的规范）：
+
+- js目录
+- css目录
+- img目录
+- fonts目录
+
+
+
+### 2.1.2完善框架主页面
+
+修改pages/frame/index.html页面，修改内容和路径
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="renderer" content="webkit" />
+
+    <title>用户管理</title>
+
+    <meta name="keywords" content="用户管理后台" />
+    <meta name="description" content="用户管理后台" />
+
+    <!--[if lt IE 9]>
+    <meta http-equiv="refresh" content="0;ie.html" />
+    <![endif]-->
+
+    <link rel="shortcut icon" th:href="@{/static/favicon.ico}" />
+    <link th:href="@{/static/css/bootstrap.min.css?v=3.3.7}" rel="stylesheet" />
+    <link th:href="@{/static/css/font-awesome.min.css?v=4.4.0}" rel="stylesheet" />
+    <link th:href="@{/static/css/animate.css}" rel="stylesheet" />
+    <link th:href="@{/static/css/style.css?v=4.1.0}" rel="stylesheet" />
+    <link th:href="@{/static/css/jquery.contextMenu.min.css}" rel="stylesheet"/>
+</head>
+
+<body class="fixed-sidebar full-height-layout gray-bg" style="overflow: hidden;">
+<div id="wrapper">
+    <!--左侧导航开始-->
+    <nav class="navbar-default navbar-static-side" role="navigation">
+        <div class="nav-close"><i class="fa fa-times-circle"></i></div>
+        <div class="sidebar-collapse">
+            <ul class="nav" id="side-menu">
+                <li class="nav-header">
+                    <div class="dropdown profile-element">
+                        <span><img alt="image" class="img-circle" th:src="@{/static/img/profile_small.jpg}" /></span>
+                        <a data-toggle="dropdown" class="dropdown-toggle" href="#">
+									<span class="clear">
+										<span class="block m-t-xs"><strong class="font-bold">Beaut-zihan</strong></span>
+										<span class="text-muted text-xs block">超级管理员<b class="caret"></b></span>
+									</span>
+                        </a>
+                        <ul class="dropdown-menu animated fadeInRight m-t-xs">
+                            <li><a class="J_menuItem" href="form_avatar.html">修改头像</a></li>
+                            <li><a class="J_menuItem" href="profile.html">个人资料</a></li>
+                            <li><a class="J_menuItem" href="contacts.html">联系我们</a></li>
+                            <li><a class="J_menuItem" href="mailbox.html">信箱</a></li>
+                            <li class="divider"></li>
+                            <li><a href="login.html">安全退出</a></li>
+                        </ul>
+                    </div>
+                    <div class="logo-element">H+</div>
+                </li>
+                <li>
+                    <a href="#">
+                        <i class="fa fa-home"></i>
+                        <span class="nav-label">权限管理</span>
+                        <span class="fa arrow"></span>
+                    </a>
+                    <ul class="nav nav-second-level">
+                        <li>
+                            <a class="J_menuItem" th:href="@{/role}" href="index_v1.html" data-index="0">用户管理</a>
+                        </li>
+                        <li>
+                            <a class="J_menuItem" th:href="@{/role}">角色管理</a>
+                        </li>
+                        <li>
+                            <a class="J_menuItem" th:href="@{/role}">菜单管理</a>
+                        </li>
+                    </ul>
+                </li>
+
+
+            </ul>
+        </div>
+    </nav>
+    <!--左侧导航结束-->
+    <!--右侧部分开始-->
+    <div id="page-wrapper" class="gray-bg dashbard-1">
+        <div class="row border-bottom">
+            <nav class="navbar navbar-static-top" role="navigation" style="margin-bottom: 0;">
+                <div class="navbar-header">
+                    <a class="navbar-minimalize minimalize-styl-2 btn btn-primary" href="#"><i class="fa fa-bars"></i> </a>
+                    <form role="search" class="navbar-form-custom" method="post" action="search_results.html">
+                        <div class="form-group">
+                            <input type="text" placeholder="请输入您需要查找的内容 …" class="form-control" name="top-search" id="top-search" />
+                        </div>
+                    </form>
+                </div>
+            </nav>
+        </div>
+        <div class="row content-tabs">
+            <button class="roll-nav roll-left J_tabLeft"><i class="fa fa-backward"></i></button>
+            <nav class="page-tabs J_menuTabs">
+                <div class="page-tabs-content">
+                    <a href="javascript:;" class="active J_menuTab" data-id="index_v1.html">首页</a>
+                </div>
+            </nav>
+            <button class="roll-nav roll-right J_tabRight"><i class="fa fa-forward"></i></button>
+            <div class="btn-group roll-nav roll-right">
+                <button class="dropdown" data-toggle="dropdown">页签操作<span class="caret"></span></button>
+                <ul role="menu" class="dropdown-menu dropdown-menu-right">
+                    <li class="tabCloseCurrent"><a>关闭当前</a></li>
+                    <li class="J_tabCloseOther"><a>关闭其他</a></li>
+                    <li class="J_tabCloseAll"><a>全部关闭</a></li>
+                </ul>
+            </div>
+            <a href="#" class="roll-nav roll-right tabReload"><i class="fa fa-refresh"></i> 刷新</a>
+        </div>
+        <div class="row J_mainContent" id="content-main">
+            <!--在当前网页内恰套其他html页面，src就是路径-->
+            <iframe class="J_iframe" name="iframe0" width="100%" height="100%" th:src="@{/main}"  frameborder="0" data-id="index_v1.html" seamless></iframe>
+        </div>
+        <div class="footer">
+            <div class="pull-right">&copy; 2014-2015 <a href="http://www.zi-han.net/" target="_blank">zihan's blog</a></div>
+        </div>
+    </div>
+
+</div>
+
+
+<!-- 全局js -->
+<script th:src="@{/static/js/jquery.min.js?v=2.1.4}"></script>
+<script th:src="@{/static/js/bootstrap.min.js?v=3.3.7}"></script>
+<script th:src="@{/static/js/plugins/metisMenu/jquery.metisMenu.js}"></script>
+<script th:src="@{/static/js/plugins/slimscroll/jquery.slimscroll.min.js}"></script>
+<script th:src="@{/static/js/plugins/contextMenu/jquery.contextMenu.min.js}"></script>
+<script th:src="@{/static/js/plugins/layer/layer.min.js}"></script>
+
+<!-- 自定义js -->
+<script th:src="@{/static/js/hplus.js?v=4.1.0}"></script>
+<script type="text/javascript" th:src="@{/static/js/contabs.js}"></script>
+</body>
+</html>
+```
+
+
+
+### 2.1.3添加欢迎登录页面
+
+添加pages/frame/main.html页面
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="renderer" content="webkit" />
+    <!--[if lt IE 9]>
+    <meta http-equiv="refresh" content="0;ie.html" />
+    <![endif]-->
+</head>
+<body style="position: relative;">
+<div style="text-align:center;margin-top: 100px;font-size: 20px;">
+    <strong>欢迎登录尚好房平台管理系统</strong>
+</div>
+</body>
+</html>
+```
+
+
+
+### 2.1.4添加欢迎页面控制器
+
+方式一：修改IndexController（推荐）
+
+```java
+package com.atguigu.controller;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.IndexController
+ */
+@Controller
+public class IndexController {
+
+    private final static String PAGE_INDEX = "frame/index";
+    private final static String PAGE_MAIN = "frame/main";
+
+    @RequestMapping("/")
+    public String index() {
+        return PAGE_INDEX;
+    }
+
+    @RequestMapping("/main")
+    public String main() {
+        return PAGE_MAIN;
+    }
+
+}
+
+```
+
+方式二：在spring-mvc.xml中添加
+
+```xml
+<!--配置iframe欢迎页面访问-->
+<mvc:view-controller path="main" view-name="frame/main"/>
+```
+
+
+
+## 2.2角色管理
+
+### 2.2.1弹出层封装
+
+在webapp/static/js目录下新建文件myLayer.js，对弹出层进行二开发，封装五种样式的弹出层：
+
+```js
+var opt = {
+    alert : function(msg){
+        layer.alert(msg);
+    },
+    //加载中
+    load : function () {
+        layer.load(1, {
+            shade: [0.5,'#fff'] //0.1透明度的白色背景
+        });
+    },
+    //确认框(确认和取消按钮，一般用于删除等危险操作)
+    confirm : function(url, msg) {
+        var msg = msg ? msg : "确定该操作吗？";
+        layer.confirm(msg,function(index){
+            opt.load();
+            window.location = url;
+        });
+    },
+    //提示框(有正确或错误的图标)
+    dialog : function(message, messageType) {
+        if(message != '' && message != null) {
+            if(messageType == '1') {
+                layer.msg(message, {icon: 1});
+            } else {
+                layer.alert(message, {icon: 2});
+            }
+        }
+    },
+    //打开一个窗口(弹出层，url就是弹出层内显示的frame窗体的路径)
+    openWin : function(url,title, width,height) {
+        var title = title ? title : false;
+        layer.open({
+            type: 2,
+            title: title,
+            zIndex:10000,
+            anim: -1,
+            maxmin: true,
+            aini:2,
+            shadeClose: false, //点击遮罩关闭层
+            area: [width+"px", height+"px"],
+            content: url
+        });
+    },
+    //关闭窗口
+    closeWin : function(refresh,call) {
+        var index = parent.layer.getFrameIndex(window.name);
+        if(refresh) {
+            parent.location.reload();
+        }
+        if(call) {
+            parent.init();
+        }
+        parent.layer.close(index); //执行关闭
+    }
+}
+```
+
+
+
+### 2.2.2添加角色CRUD页面
+
+角色CRUD的web页面，都在`webapp/WEB-INF/pages/role`目录下
+
+#### 2.2.2.1角色展示页面
+
+角色展示页面：`pages/role/index.html`文件
+
+```html
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <link rel="shortcut icon" th:href="@{/static/favicon.ico}">
+    <link th:href="@{/static/css/bootstrap.min.css?v=3.3.7}" rel="stylesheet">
+    <link th:href="@{/static/css/font-awesome.css?v=4.4.0}" rel="stylesheet">
+
+    <!-- Data Tables -->
+    <link th:href="@{/static/css/plugins/dataTables/dataTables.bootstrap.css}" rel="stylesheet">
+
+    <link th:href="@{/static/css/animate.css}" rel="stylesheet">
+    <link th:href="@{/static/css/style.css?v=4.1.0}" rel="stylesheet">
+
+    <!-- 全局js -->
+    <script th:src="@{/static/js/jquery.min.js?v=2.1.4}"></script>
+    <script th:src="@{/static/js/bootstrap.min.js?v=3.3.7}"></script>
+    <script th:src="@{/static/js/plugins/jeditable/jquery.jeditable.js}"></script>
+    <!-- Data Tables -->
+    <script th:src="@{/static/js/plugins/dataTables/jquery.dataTables.js}"></script>
+    <script th:src="@{/static/js/plugins/dataTables/dataTables.bootstrap.js}"></script>
+
+    <!-- 弹出层js -->
+    <script th:src="@{/static/js/plugins/layer/layer.min.js}"></script>
+    <script th:src="@{/static/js/myLayer.js}"></script>
+</head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="row">
+        <div class="col-sm-12">
+            <div class="ibox float-e-margins">
+                <div class="ibox-content">
+                    <!--弹出层按钮-->
+                    <button type="button" class="btn btn-sm btn-primary create">新增</button>
+                    <table class="table table-striped table-bordered table-hover dataTables-example">
+                        <thead>
+                        <tr>
+                            <th>序号</th>
+                            <th>角色名称</th>
+                            <th>角色编码</th>
+                            <th>描述</th>
+                            <th>创建时间</th>
+                            <th>操作 </th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr class="gradeX" th:each="item,it : ${list}">
+                            <td class="text-center" th:text="${it.count}">11</td>
+                            <td th:text="${item.roleName}">22</td>
+                            <td th:text="${item.roleCode}">33</td>
+                            <td th:text="${item.description}">33</td>
+                            <td th:text="${#dates.format(item.createTime,'yyyy-MM-dd HH:mm:ss')}" >33</td>
+                            <td class="text-center">
+                                <a class="edit" th:attr="data-id=${item.id}">修改</a>
+                                <a class="delete" th:attr="data-id=${item.id}">删除</a>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!--在使用thymeleaf时，前端页面如要在javascript中获取后端传入的数据，需要使用<script th:inline="javascript">-->
+<script th:inline="javascript">
+    <!--弹出层事件-->
+    $(function(){
+        <!--新增-->
+        $(".create").on("click",function () {
+            opt.openWin("/role/create","新增",580,430);
+        });
+        <!--修改-->
+        $(".edit").on("click",function () {
+            var id = $(this).attr("data-id");
+            opt.openWin('/role/edit/' + id,'修改',580,430);
+        });
+        <!--删除-->
+        $(".delete").on("click",function(){
+            var id = $(this).attr("data-id");
+            opt.confirm('/role/delete/'+id);
+        });
+    });
+</script>
+</body>
+</html>
+```
+
+
+
+#### 2.2.2.2角色新增页面
+
+角色新增页面：`pages/role/create.html`文件
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>新增</title>
+
+    <link rel="shortcut icon" th:href="@{/static/favicon.ico}">
+    <link th:href="@{/static/css/bootstrap.min.css?v=3.3.7}" rel="stylesheet">
+    <link th:href="@{/static/css/font-awesome.css?v=4.4.0}" rel="stylesheet">
+
+    <!-- Data Tables -->
+    <link th:href="@{/static/css/plugins/dataTables/dataTables.bootstrap.css}" rel="stylesheet">
+
+    <link th:href="@{/static/css/animate.css}" rel="stylesheet">
+    <link th:href="@{/static/css/style.css?v=4.1.0}" rel="stylesheet">
+
+    <!-- 全局js -->
+    <script th:src="@{/static/js/jquery.min.js?v=2.1.4}"></script>
+    <script th:src="@{/static/js/bootstrap.min.js?v=3.3.7}"></script>
+
+    <!-- 弹出层js -->
+    <script th:src="@{/static/js/plugins/layer/layer.min.js}"></script>
+    <script th:src="@{/static/js/myLayer.js}"></script>
+</head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/role/save}" method="post" class="form-horizontal">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">角色名称：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="roleName" id="roleName" value="" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">角色编码：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="roleCode" id="roleCode" value="" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">描述：</label>
+                    <div class="col-sm-10">
+                        <textarea name="description" id="description" class="form-control" style="width:100%;height: 50px;" ></textarea>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group posf">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" value="取消" onclick="opt.closeWin()">取消</button></div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 2.2.2.3角色修改页面
+
+角色修改页面：`pages/role/edit.html`文件
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>修改</title>
+
+  <link rel="shortcut icon" th:href="@{/static/favicon.ico}">
+  <link th:href="@{/static/css/bootstrap.min.css?v=3.3.7}" rel="stylesheet">
+  <link th:href="@{/static/css/font-awesome.css?v=4.4.0}" rel="stylesheet">
+
+  <!-- Data Tables -->
+  <link th:href="@{/static/css/plugins/dataTables/dataTables.bootstrap.css}" rel="stylesheet">
+
+  <link th:href="@{/static/css/animate.css}" rel="stylesheet">
+  <link th:href="@{/static/css/style.css?v=4.1.0}" rel="stylesheet">
+
+  <!-- 全局js -->
+  <script th:src="@{/static/js/jquery.min.js?v=2.1.4}"></script>
+  <script th:src="@{/static/js/bootstrap.min.js?v=3.3.7}"></script>
+
+  <!-- 弹出层js -->
+  <script th:src="@{/static/js/plugins/layer/layer.min.js}"></script>
+  <script th:src="@{/static/js/myLayer.js}"></script>
+</head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+  <div class="ibox float-e-margins">
+    <div class="ibox-content" style="width: 98%;">
+      <form id="ec" th:action="@{/role/update}" method="post" class="form-horizontal" >
+        <input type="hidden" name="id" th:value="${role.id}">
+        <div class="form-group">
+          <label class="col-sm-2 control-label">角色：</label>
+
+          <div class="col-sm-10">
+            <input type="text" name="roleName" id="roleName" th:value="${role.roleName}" class="form-control"/>
+          </div>
+        </div>
+        <div class="hr-line-dashed"></div>
+        <div class="form-group">
+          <label class="col-sm-2 control-label">角色编码：</label>
+          <div class="col-sm-10">
+            <input type="text" name="roleCode" id="roleCode" th:value="${role.roleCode}" class="form-control"/>
+          </div>
+        </div>
+        <div class="hr-line-dashed"></div>
+        <div class="form-group">
+          <label class="col-sm-2 control-label">描述：</label>
+          <div class="col-sm-10">
+            <textarea name="description" id="description" class="form-control" style="width:100%;height: 50px;" th:text="${role.description}" ></textarea>
+          </div>
+        </div>
+        <div class="hr-line-dashed"></div>
+        <div class="form-group posf">
+          <div class="col-sm-4 col-sm-offset-2 text-right">
+            <button class="btn btn-primary" type="submit">确定</button>
+            <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button></div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 2.2.2.4创建修改成功页面
+
+在WEB-INF/pages/common目录下创建success.html文件
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>成功提示页</title>
+
+    <link rel="shortcut icon" th:href="@{/static/favicon.ico}">
+    <link th:href="@{/static/css/bootstrap.min.css?v=3.3.7}" rel="stylesheet">
+    <link th:href="@{/static/css/font-awesome.css?v=4.4.0}" rel="stylesheet">
+
+    <!-- Data Tables -->
+    <link th:href="@{/static/css/plugins/dataTables/dataTables.bootstrap.css}" rel="stylesheet">
+
+    <link th:href="@{/static/css/animate.css}" rel="stylesheet">
+    <link th:href="@{/static/css/style.css?v=4.1.0}" rel="stylesheet">
+
+    <!-- 全局js -->
+    <script th:src="@{/static/js/jquery.min.js?v=2.1.4}"></script>
+    <script th:src="@{/static/js/bootstrap.min.js?v=3.3.7}"></script>
+
+    <!-- 弹出层js -->
+    <script th:src="@{/static/js/plugins/layer/layer.min.js}"></script>
+    <script th:src="@{/static/js/myLayer.js}"></script>
+</head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content">
+            <div class="form-group">
+                <div class="col-sm-10">操作成功</div>
+            </div>
+            <div class="hr-line-dashed"></div>
+            <div class="form-group posf">
+                <div class="col-sm-4 col-sm-offset-2">
+                    <!--传递true，让父级刷新-->
+                    <button class="btn btn-primary" type="button" onclick="opt.closeWin(true);">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+
+
+### 2.2.3角色CRUD持久层
+
+dao层接口文件：`dao/RoleDao`
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.Role;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.RoleDao
+ */
+public interface RoleDao {
+
+    /**
+     * @Description: 查询所有
+     */
+    List<Role> findAll();
+
+    /**
+     * @Description: 插入一条数据
+     */
+    Integer insert(Role role);
+
+    /**
+     * @Description: 通过id获取
+     */
+    Role getById(Long id);
+
+    /**
+     * @Description: 修改数据
+     */
+    Integer update(Role role);
+
+    /**
+     * @Description: 删除数据
+     */
+    void delete(Long id);
+
+}
+```
+
+dao层映射文件：`resources/mapper/RoleDao.xml`
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.RoleDao">
+
+    <!-- 用于select查询公用抽取的列 -->
+    <sql id="columns">
+        select id,role_name,role_code,description,create_time,update_time,is_deleted from acl_role
+    </sql>
+
+    <!--查询所有-->
+    <select id="findAll" resultType="role">
+        <include refid="columns"></include>
+        where is_deleted = 0
+    </select>
+
+    <!--查询单个-->
+    <select id="getById" resultType="role">
+        <include refid="columns"/>
+        where
+        id = #{id}
+    </select>
+
+    <!--新增-->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into acl_role (
+        id ,
+        role_name ,
+        role_code ,
+        description
+        ) values (
+        #{id} ,
+        #{roleName} ,
+        #{roleCode} ,
+        #{description}
+        )
+    </insert>
+
+    <!--修改方式一：可赋值为null
+    <update id="update">
+        update acl_role set
+        role_name=#{roleName},role_code=#{roleCode},description=#{description}
+        where id=#{id}
+    </update>
+    -->
+
+    <!--修改方式二：使用set标签，赋为null或空串时不修改原来的数据-->
+    <update id="update">
+        update acl_role
+        <set>
+            <if test="roleName!=null and roleName!=''">
+                role_name=#{roleName},
+            </if>
+            <if test="roleCode!=null and roleCode!=''">
+                role_code=#{roleCode},
+            </if>
+            <if test="description!=null and description!=''">
+                description=#{description},
+            </if>
+        </set>
+        where id=#{id}
+    </update>
+
+
+    <!--逻辑删除-->
+    <update id="delete">
+        update acl_role set
+        is_deleted = 1
+        where
+        id = #{id}
+    </update>
+
+</mapper>
+```
+
+
+
+### 2.2.4角色CRUD业务层
+
+service层接口文件：`service/RoleService`
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.Role;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.RoleService
+ */
+public interface RoleService {
+
+    /**
+     * @Description: 角色列表
+     */
+    List<Role> findAll();
+
+    /**
+     * @Description: 角色新增
+     */
+    Integer insert(Role role);
+
+    /**
+     * @Description: 修改回显
+     */
+    Role getById(Long id);
+
+    /**
+     * @Description: 修改操作
+     */
+    Integer update(Role role);
+
+    /**
+     * @Description: 删除操作
+     */
+    void delete(Long id);
+}
+```
+
+service层接口实现类文件：`service/impl/RoleServiceImpl`
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.RoleDao;
+import com.atguigu.entity.Role;
+import com.atguigu.service.RoleService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.RoleServiceImpl
+ */
+@Service
+public class RoleServiceImpl implements RoleService {
+    @Autowired
+    private RoleDao roleDao;
+
+    /**
+     * @Description: 展示所有角色
+     */
+    @Override
+    public List<Role> findAll() {
+        return roleDao.findAll();
+    }
+
+    /**
+     * @Description: 新增角色
+     */
+    @Override
+    public Integer insert(Role role) {
+        return roleDao.insert(role);
+    }
+
+    /**
+     * @Description: 修改角色回显数据
+     */
+    @Override
+    public Role getById(Long id) {
+        return roleDao.getById(id);
+    }
+
+    /**
+     * @Description: 角色更新操作
+     */
+    @Override
+    public Integer update(Role role) {
+        return roleDao.update(role);
+    }
+
+    /**
+     * @Description: 角色删除操作
+     */
+    @Override
+    public void delete(Long id) {
+        roleDao.delete(id);
+    }
+}
+```
+
+
+
+### 2.2.5角色CRUD控制层
+
+controller层类文件：`controller/RoleController`
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.Role;
+import com.atguigu.service.RoleService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.RoleController
+ */
+@Controller
+@RequestMapping("/role")
+public class RoleController {
+
+    private final static String PAGE_INDEX = "role/index";
+    private final static String PAGE_CREATE = "role/create";
+    private final static String PAGE_EDIT = "role/edit";
+    private final static String PAGE_SUCCESS = "common/success";
+    private final static String LIST_ACTION = "redirect:/role";
+
+    @Autowired
+    private RoleService roleService;
+
+    /**
+     * @Description: 处理/role请求，查询所有角色
+     */
+    @RequestMapping
+    public String findAll(Map map) {
+        List<Role> list = roleService.findAll();
+        map.put("list", list);
+        return PAGE_INDEX;
+    }
+
+    /**
+     * @Description: 处理/create请求，跳转到添加角色页面
+     */
+    @RequestMapping("/create")
+    public String create() {
+        return PAGE_CREATE;
+    }
+
+    /**
+     * @Description: 处理/save请求，执行添加角色操作
+     */
+    @RequestMapping("/save")
+    public String save(Role role) {
+        roleService.insert(role);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * @Description: 处理/edit/id请求，跳转到修改角色页面
+     */
+    @RequestMapping("/edit/{id}")
+    public String edit(
+            @PathVariable Long id,
+            Map map
+    ) {
+        Role role = roleService.getById(id);
+        map.put("role",role);
+        return PAGE_EDIT;
+    }
+
+    /**
+     * @Description: 处理/update请求，执行角色修改操作
+     */
+    @RequestMapping(value="/update")
+    public String update(Role role) {
+        roleService.update(role);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * @Description: 处理/delete/id请求，执行角色删除操作
+     */
+    @RequestMapping("/delete/{id}")
+    public String delete(@PathVariable Long id) {
+        roleService.delete(id);
+        //不是在iframe窗体内执行操作，直接重定向即可
+        return LIST_ACTION;
+    }
+
+}
+```
+

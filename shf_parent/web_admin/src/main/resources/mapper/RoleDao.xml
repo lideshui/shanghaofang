@@ -15,4 +15,60 @@
         <include refid="columns"></include>
         where is_deleted = 0
     </select>
+
+    <!--查询单个实例，用于编辑页面的数据回显-->
+    <select id="getById" resultType="role">
+        <include refid="columns"/>
+        where
+        id = #{id}
+    </select>
+
+    <!--新增-->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into acl_role (
+        id ,
+        role_name ,
+        role_code ,
+        description
+        ) values (
+        #{id} ,
+        #{roleName} ,
+        #{roleCode} ,
+        #{description}
+        )
+    </insert>
+
+    <!--修改方式一：可赋值为null
+    <update id="update">
+        update acl_role set
+        role_name=#{roleName},role_code=#{roleCode},description=#{description}
+        where id=#{id}
+    </update>
+    -->
+
+    <!--修改方式二：使用set标签，赋为null或空串时不修改原来的数据-->
+    <update id="update">
+        update acl_role
+        <set>
+            <if test="roleName!=null and roleName!=''">
+                role_name=#{roleName},
+            </if>
+            <if test="roleCode!=null and roleCode!=''">
+                role_code=#{roleCode},
+            </if>
+            <if test="description!=null and description!=''">
+                description=#{description},
+            </if>
+        </set>
+        where id=#{id}
+    </update>
+
+
+    <!--逻辑删除-->
+    <update id="delete">
+        update acl_role set
+        is_deleted = 1
+        where
+        id = #{id}
+    </update>
 </mapper>
