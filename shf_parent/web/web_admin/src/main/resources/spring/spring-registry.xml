@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!--这里不需要设置扫描包，springMvc中已经设置了，不然会冲突⚠️-->
+    <!--<context:component-scan base-package="com.atguigu.controller"/>-->
+
+    <!--配置dubbo应用程序名称-->
+    <dubbo:application name="web_admin"></dubbo:application>
+
+    <!--注册配置中心-->
+    <dubbo:registry address="zookeeper://localhost:2181"></dubbo:registry>
+
+    <!--启动时候不检查 设置连接超时时间-->
+    <dubbo:consumer check="false" timeout="600000"></dubbo:consumer>
+</beans>

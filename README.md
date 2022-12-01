@@ -4324,3 +4324,2051 @@ edit.html
 
 
 
+# 3 Apache Dubbo
+
+## 3.1分布式RPC框架
+
+### 3.1.1架构的演变
+
+单体架构、垂直架构、SOA架构到微服务架构
+
+单体架构
+
+- 架构简单，前期开发成本低、开发周期短
+- 适合小型项目（OA、CRM、ERP 企业内部应用）
+
+垂直架构：
+
+- 按照业务进行切割，形成小的单体项目
+- 垂直MVC项目主要有表现层，业务逻辑层，数据访问层组成的MVC架构
+- 整个项目打包放在一个tomcat里面。适合于 访问量小，用户数不多的业务
+
+SOA架构：
+
+- SOA 全称为 Service-Oriented Architecture，即面向服务的架构
+- 据需求通过网络对松散耦合的粗粒度应用组件(服务)进行分布式部署、组合和使用
+- 一个服务通常以独立的形式存在于操作系统进程中
+
+微服务架构：
+
+- SOA 上做的升级，微服务架构强调的一个重点是“业务需要彻底的组件化和服务化”
+- 原有的单个业务系统会拆分为多个可以独立开发、设计、运行的小应用。这些小应用之间通过服务完成交互和集成
+
+
+
+### 3.1.2Apache Dubbo概述
+
+Apache Dubbo是一款高性能的Java RPC框架。其前身是阿里巴巴公司开源的一个高性能、轻量级的开源Java RPC框架，可以和Spring框架无缝集成。Dubbo提供了三大核心能力:面向接口的远程方法调用，智能容错和负载均衡，以及服务自动注册和发现。
+
+RPC全称为remote procedure call，即远程过程调用。
+
+Dubbo官网地址：http://dubbo.apache.org 
+
+
+
+### 3.1.3Zookeeper
+
+Dubbo没有自己实现注册中心，所以要使用Zookeeper作为注册中心，即要使用Dubbo必须先启动Zookeeper
+
+Zookeeper作为注册中心是以树形结构构建服务的，结构如下：
+
+- Dubbo
+  - Service
+    - 服务提供者
+      - 提供服务的IP和端口
+    - 服务消费者
+      - 消费服务的IP
+
+这种服务结构，一旦服务提供者发生变化，注册中心可以及时联系服务消费者修改
+
+Zookeeper还支持集群，防止单点服务器异常
+
+Zookeeper底层调用原理是代理模式，基于类型获取⚠️
+
+
+
+### 3.1.4配置Zookeeper
+
+1. 将`conf`目录中的`zoo_sample.cfg`文件复制一份到`conf`目录并命名为`zoo.cfg`
+2. 修改`zoo.cfg`文件: 大概在第12行，设置`dataDir=../data`
+3. zookeeper从3.5开始默认占用8080端口号，因为Tomcat默认也占用8080端口号，我们可以在zoo.cfg配置文件中修改该端口号
+
+```shell
+admin.serverPort=8888
+```
+
+启动Zookeeper，首先进入bin目录：
+
+-  Windows启动：双击zkServer.cmd
+-  Linux/Mac启动：./zkServer.sh start
+
+连接Zookeeper，首先进入bin目录：
+
+-  Windows连接：双击zkCli.cmd
+-  Linux/Mac连接：./zkCli.sh
+
+
+
+### 3.1.5调用关系
+
+提供服务：服务提供者→注册中心⇆服务消费者→计数器←服务提供者
+
+消费服务：服务消费者→服务提供者（基于代理模式，根据类型调用）
+
+提供服务是异步，消费服务是同步，双向操作仅有`注册中心⇆服务消费者`
+
+调用关系说明:
+
+1. 服务容器负责启动，加载，运行服务提供者。
+
+2. 服务提供者在启动时，向注册中心注册自己提供的服务。
+
+3. 服务消费者在启动时，向注册中心订阅自己所需的服务。
+
+4. 注册中心返回服务提供者地址列表给消费者，如果有变更，注册中心将基于长连接推送变更数据给消费者。
+
+5. 服务消费者，从提供者地址列表中，基于负载均衡算法，选一台提供者进行调用，如果调用失败，再选另一台调用。
+
+6. 服务消费者和提供者，在内存中累计调用次数和调用时间，定时每分钟发送一次统计数据到监控中心。
+
+
+
+## 3.2Dubbo入门程序
+
+首先基于Maven创建项目结构：
+
+- dubbo_parent（父工程，管理依赖）
+  - dubbo_interface（接口工程）
+  - dubbo_provider（服务提供者）
+  - dubbo_consumer（服务消费者）
+
+### 3.2.1父工程dubbo_parent
+
+删除src目录，只保留pom.xml文件，打包方式设置为pom，导入以下依赖
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.atguigu</groupId>
+    <artifactId>dubbo_parent</artifactId>
+    <packaging>pom</packaging>
+    <version>1.0-SNAPSHOT</version>
+    <modules>
+        <module>dubbo_provider</module>
+        <module>dubbo_consumer</module>
+        <module>dubbo_interface</module>
+    </modules>
+
+
+    <properties>
+        <dubbo.version>3.0.8</dubbo.version>
+        <spring.version>5.2.20.RELEASE</spring.version>
+    </properties>
+    <dependencyManagement>
+        <dependencies>
+            <!--Spring相关jar包-->
+            <dependency>
+                <groupId>org.springframework</groupId>
+                <artifactId>spring-webmvc</artifactId>
+                <version>${spring.version}</version>
+            </dependency>
+            <!--Dubbo相关jar包-->
+            <dependency>
+                <groupId>org.apache.dubbo</groupId>
+                <artifactId>dubbo</artifactId>
+                <version>${dubbo.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.dubbo</groupId>
+                <artifactId>dubbo-dependencies-zookeeper</artifactId>
+                <version>${dubbo.version}</version>
+                <type>pom</type>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+
+</project>
+```
+
+
+
+### 3.2.2创建接口工程
+
+子工程`dubbo_interface`是接口工程，为服务提供者和服务消费者提供统一接口。
+
+#### 3.2.2.1创建服务接口
+
+创建接口文件
+
+```java
+package com.atguigu.service;
+
+public interface HelloService {
+    String sayHello(String name);
+}
+```
+
+
+
+#### 3.2.2.2提供接口
+
+第一步：必须将`dubbo-interface`执行install的操作，将当前模块安装到本地仓库中，pom.xml内可查看坐标
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>dubbo_parent</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>dubbo_interface</artifactId>
+
+</project>
+```
+
+第二步：服务提供者`dubbo_provider`和服务消费者`dubbo_consumer`的pom.xml文件中必须使用坐标添加该依赖
+
+```xml
+<!--继承接口依赖dubbo_interface-->
+<dependency>
+  <artifactId>dubbo_interface</artifactId>
+  <groupId>com.atguigu</groupId>
+  <version>1.0-SNAPSHOT</version>
+</dependency>
+```
+
+
+
+### 3.2.3创建服务提供者
+
+子工程`dubbo_provider`是服务提供者工程，向服务注册中心zookeeper注册服务。
+
+#### 3.2.3.1引入父工程依赖
+
+修改pom.xml文件，打包方式为war，导入父工程的依赖，导入接口工程的依赖
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>dubbo_parent</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <packaging>war</packaging>
+
+    <artifactId>dubbo_provider</artifactId>
+
+    <dependencies>
+        <!--Spring相关jar包-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+        </dependency>
+        <!--Dubbo相关jar包-->
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-dependencies-zookeeper</artifactId>
+            <type>pom</type>
+        </dependency>
+        <!--继承接口依赖dubbo_interface-->
+        <dependency>
+            <artifactId>dubbo_interface</artifactId>
+            <groupId>com.atguigu</groupId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-maven-plugin</artifactId>
+                <version>9.4.15.v20190215</version>
+                <configuration>
+                    <!-- 如果检测到项目有更改则自动热部署，每隔n秒扫描一次。默认为0，即不扫描-->
+                    <scanIntervalSeconds>10</scanIntervalSeconds>
+                    <webAppConfig>
+                        <!--指定web项目的根路径，默认为/ -->
+                        <contextPath>/</contextPath>
+                    </webAppConfig>
+                    <httpConnector>
+                        <!--端口号，默认 8080-->
+                        <port>8081</port>
+                    </httpConnector>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+
+
+#### 3.2.3.2创建服务实现类
+
+service层实现类：
+
+@DubboService注解：将当前类的服务注册到注册中心⚠️
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.service.HelloService;
+import org.apache.dubbo.config.annotation.DubboService;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.HelloServiceImpl
+ * @DubboService 将当前类的服务注册到注册中心
+ */
+@DubboService
+public class HelloServiceImpl implements HelloService {
+    @Override
+    public String sayHello(String name) {
+        return "Hello:"+name;
+    }
+}
+```
+
+
+
+#### 3.2.3.3配置注册服务信息
+
+创建spring-service.xml，配置向服务注册中心zookeeper注册服务的信息
+
+`dubbo:annotation`包扫描器比`context:component-scan`包扫描器更加强大，Dubbo升级了包扫描器，同时扫描spring和springMVC也不冲突
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd">
+  
+    <!-- 为当前服务提供者起个名字 name值随便定义，但不能和消费者冲突 -->
+    <dubbo:application name="dubbo_provider"/>
+  
+    <!-- 连接服务注册中心zookeeper ip为zookeeper所在服务器的ip地址-->
+    <dubbo:registry address="zookeeper://localhost:2181"/>
+  
+    <!-- 设置服务暴漏在哪个端口下，name指定协议，端口默认是20880 -->
+    <dubbo:protocol name="dubbo" port="20881"></dubbo:protocol>
+  
+    <!-- 扫描指定包，加入@DubboService注解的类会被发布为服务，也可以使用配置文件  -->
+    <dubbo:annotation package="com.atguigu.service"/>
+
+</beans>
+```
+
+
+
+#### 3.2.3.4配置web.xml
+
+使用监听器，监听服务启动，加载spring-service.xml文件，向服务注册中心zookeeper注册服务
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd"
+         version="4.0">
+    <context-param>
+        <param-name>contextConfigLocation</param-name>
+        <param-value>classpath:spring-service.xml</param-value>
+    </context-param>
+    <listener>
+        <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+    </listener>
+</web-app>
+```
+
+
+
+#### 3.2.3.5启动服务提供者
+
+Maven → web_admin → Plugins → jetty → jetty:run
+
+访问：http://localhost:8081/（8081是pom文件中设置的jetty服务的端口）
+
+
+
+### 3.2.4创建服务消费者
+
+子工程`dubbo_consumer`是服务消费者工程，在服务注册中心zookeeper使用服务。
+
+#### 3.2.4.1引入父工程依赖
+
+修改pom.xml文件，打包方式为war，导入父工程的依赖，导入接口工程的依赖
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>dubbo_parent</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>dubbo_consumer</artifactId>
+
+    <packaging>war</packaging>
+    <dependencies>
+        <!--Spring相关jar包-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+        </dependency>
+        <!--Dubbo相关jar包-->
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-dependencies-zookeeper</artifactId>
+            <type>pom</type>
+        </dependency>
+        <!--继承接口依赖dubbo_interface-->
+        <dependency>
+            <artifactId>dubbo_interface</artifactId>
+            <groupId>com.atguigu</groupId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-maven-plugin</artifactId>
+                <version>9.4.15.v20190215</version>
+                <configuration>
+                    <!-- 如果检测到项目有更改则自动热部署，每隔n秒扫描一次。默认为0，即不扫描-->
+                    <scanIntervalSeconds>10</scanIntervalSeconds>
+                    <webAppConfig>
+                        <!--指定web项目的根路径，默认为/ -->
+                        <contextPath>/</contextPath>
+                    </webAppConfig>
+                    <httpConnector>
+                        <!--端口号，默认 8080-->
+                        <port>8082</port>
+                    </httpConnector>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+
+
+#### 3.2.4.2创建Controller
+
+不需要创建service层，直接向服务注册中心zookeeper获取服务，调用服务提供者的service
+
+@DubboReference注解：从注册中心拿到服务层对象⚠️
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.service.HelloService;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.HelloController
+ */
+@Controller
+@RequestMapping("/hello")
+public class HelloController {
+
+    /***
+     * 不能使用@Autowired从IoC容器内找内容相同的完成自动装配
+     * 应该去注册中心拿到服务层对象，使用@DubboReference注解
+     */
+    @DubboReference
+    private HelloService helloService;
+
+    @RequestMapping
+    @ResponseBody
+    public String hello(String name){
+        String atguigu = helloService.sayHello(name);
+        return atguigu;
+    }
+}
+package com.atguigu.controller;
+
+import com.atguigu.service.HelloService;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.HelloController
+ */
+@Controller
+@RequestMapping("/hello")
+public class HelloController {
+
+    /***
+     * 不能使用@Autowired从IoC容器内找内容相同的完成自动装配
+     * 应该去注册中心拿到服务
+     */
+    @DubboReference
+    private HelloService helloService;
+
+    @RequestMapping
+    @ResponseBody
+    public String hello(String name){
+        String atguigu = helloService.sayHello(name);
+        return atguigu;
+    }
+}
+
+```
+
+
+
+#### 3.2.4.3配置获取服务信息
+
+创建spring-service.xml，配置向服务注册中心zookeeper获取服务的信息
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:dubbo="http://code.alibabatech.com/schema/dubbo"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+         http://www.springframework.org/schema/beans/spring-beans.xsd
+         http://code.alibabatech.com/schema/dubbo
+         http://code.alibabatech.com/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+  
+    <!--设置注解包的扫描-->
+    <context:component-scan base-package="com.atguigu.controller"/>
+  
+    <!-- 为当前消费者起个名字，注意：消费者和提供者应用名不要一样 -->
+    <dubbo:application name="dubbo_consumer" />
+  
+    <!-- 连接服务注册中心zookeeper ip为zookeeper所在服务器的ip地址-->
+    <dubbo:registry address="zookeeper://localhost:2181"/>
+  
+    <!-- 运行dubbo不检查提供者是否提前开启，可以不需要考虑启动顺序，可配置timepout属性，长时间没提供者才会报错-->
+    <dubbo:consumer check="false"></dubbo:consumer>
+</beans>
+```
+
+
+
+#### 3.2.4.4配置web.xml
+
+使用监听器，监听服务启动，加载spring-service.xml文件，向服务注册中心zookeeper获取服务
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd"
+         version="4.0">
+    <servlet>
+        <servlet-name>springmvc</servlet-name>
+        <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+        <!-- 指定加载的配置文件 ，通过参数contextConfigLocation加载 -->
+        <init-param>
+            <param-name>contextConfigLocation</param-name>
+            <param-value>classpath:spring-mvc.xml</param-value>
+        </init-param>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>springmvc</servlet-name>
+        <url-pattern>/</url-pattern>
+    </servlet-mapping>
+</web-app>
+```
+
+
+
+#### 3.2.4.5启动服务消费者
+
+Maven → web_admin → Plugins → jetty → jetty:run
+
+访问：http://localhost:8082/（8082是pom文件中设置的jetty服务的端口）
+
+
+
+## 3.3Dubbo管理控制台
+
+我们在开发时，需要知道Zookeeper注册中心都注册了哪些服务，有哪些消费者来消费这些服务。我们可以通过部署一个管理中心来实现。其实管理中心就是一个web应用，使用Tomcat或其他服务器部署即可。
+
+### 3.3.1获取平台项目
+
+Dubbo管理控制台是Apache在GitHub上开源的项目，任何人都可以访问获取
+
+GitHub网址：https://github.com/apache/dubbo-admin
+
+我们可从GitHub克隆项目使用，也可以使用别人打包好的war包，但是使用war包和打包的JDK版本不同时，部署后可能会响应404！⚠️
+
+
+
+### 3.3.2部署管理平台
+
+以Tomcat部署war包为例：
+
+- 将war包文件复制到Tomcat的webapps目录下
+- Windows：在Tomcat的bin目录双击startup.bat文件启动Tomcat，war包会自动解压
+- Linux+Mac：命令行cd到在Tomcat的bin目录下，`startup.sh`开启服务，`./shutdown.sh`关闭服务
+- 访问http://localhost:8080/dubbo-admin-2.6.0/ ，输入用户名(root)和密码(root)，切换简体中文，路径要根据解压目录名更换
+- 启动服务提供者工程和服务消费者工程，可以在查看到对应的信息
+
+项目内的dubbo.properties文件是配置信息文件，修改之后需要重启Tomcat
+
+```properties
+#注意dubbo.registry.address对应的值需要对应当前使用的Zookeeper的ip地址和端口号
+dubbo.registry.address=zookeeper://zk所在机器ip:zk端口
+dubbo.admin.root.password=root //管理员访问密码
+dubbo.admin.guest.password=guest //游客访问密码
+```
+
+
+
+## 3.4Dubbo相关配置说明
+
+### 3.4.1包扫描
+
+`dubbo:annotation`包扫描器比`context:component-scan`包扫描器更加强大
+
+服务提供者需要配置，表示包扫描，作用是扫描指定包(包括子包)下的类
+
+Dubbo升级了包扫描器，同时扫描spring和springMVC也不冲突
+
+```xml
+<dubbo:protocol name="dubbo" port="20880"/>
+```
+
+
+
+### 3.4.2基于XML配置
+
+如果不使用包扫描，也可以通过XML配置的方式来发布和消费服务
+
+#### 3.4.2.1配置提供者
+
+首先，必须把服务提供者service层实现类中的`@DubboService`注解去掉，
+
+```java
+public class HelloServiceImpl implements HelloService {
+    @Override
+    public String sayHello(String name) {
+        return "111Hello:"+name;
+    }
+}
+```
+
+然后，修改xml文件，注释掉Dubbo包扫描器，将该实现类通过xml配置到IoC中，再从IoC取出注册到注册中心
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd">
+
+    <dubbo:application name="dubbo_provider"/>
+
+    <dubbo:registry address="zookeeper://localhost:2181"/>
+
+    <dubbo:protocol name="dubbo" port="20881"></dubbo:protocol>
+
+    <!--<dubbo:annotation package="com.atguigu.service"/>-->
+
+    <!--不使用dubbo:annotation包扫描器，直接配置-->
+    <!--将服务HelloServiceImpl添加到IoC容器-->
+    <bean id="helloService" class="com.atguigu.service.impl.HelloServiceImpl" />
+		<!--将IoC容器中的HelloServiceImpl对象，注册到注册中心-->
+    <dubbo:service interface="com.atguigu.service.HelloService" ref="helloService" />
+
+</beans>
+```
+
+
+
+#### 3.4.2.2配置消费者
+
+首先，修改controller，不再使用`@DubboReference`注解从注册中心获取服务，而是使用`@Autowired`注解从IoC容器自动注入
+
+```java
+@Controller
+@RequestMapping("/hello")
+public class HelloController {
+
+		//@DubboReference
+    @Autowired
+    private HelloService helloService;
+
+    @RequestMapping
+    @ResponseBody
+    public String hello(String name){
+        String atguigu = helloService.sayHello(name);
+        return atguigu;
+    }
+}
+```
+
+然后，修改xml配置，将注册中心的服务对象，注入到自己的IoC容器中
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:dubbo="http://code.alibabatech.com/schema/dubbo"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+         http://www.springframework.org/schema/beans/spring-beans.xsd
+         http://code.alibabatech.com/schema/dubbo
+         http://code.alibabatech.com/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+
+    <dubbo:application name="dubbo_consumer"/>
+
+    <dubbo:registry address="zookeeper://localhost:2181"/>
+
+    <dubbo:consumer check="false"></dubbo:consumer>
+
+    <context:component-scan base-package="com.atguigu.controller"/>
+    
+    <!-- 将注册中心的服务对象，注入到自己的IoC容器 -->
+    <dubbo:reference interface="com.atguigu.service.HelloService" id="helloService"/>
+
+</beans>
+```
+
+
+
+### 3.4.3RPC协议
+
+生产者和消费者一方配置即可。一般在服务提供者一方配置，可以指定使用的协议名称和端口号。
+
+注意:：不同的服务提供者，协议使用的端口号不能相同⚠️
+
+其中Dubbo支持的协议有：dubbo、rmi、hessian、http、webservice、rest、redis等：
+
+推荐使用的是dubbo协议：
+
+- 适合于小数据量大并发的服务调用，
+- 以及服务消费者机器数远大于服务提供者机器数的情况。
+- 不适合传送大数据量的服务，比如传文件，传视频等，除非请求量很低。
+
+配置方式：
+
+在xml文件中配置，可配置但协议或多协议，若是多协议可以在@DubboService注解中使用protocol属性选择协议
+
+配置多协议：
+
+```xml
+<!-- 多协议配置 -->
+<dubbo:protocol name="dubbo" port="20880" />
+<dubbo:protocol name="rmi" port="20890" />
+```
+
+选择协议：
+
+```java
+@DubboService(protocol = "dubbo")
+public class HelloServiceImpl implements HelloService {
+    @Override
+    public String sayHello(String name) {
+        return "Hello:"+name;
+    }
+}
+```
+
+
+
+### 3.4.4启动时检查
+
+标签：`<dubbo:consumer check="false"/>` 配置在 `服务消费者` 一方，如果不配置默认check值为true。
+
+推荐设置为false，启动服务消费者时，不检查服务提供者是否提前开启，可以不需要考虑启动顺序
+
+可以配置timepout属性，服务消费者启动一段时间后，还没提供者才会报错
+
+```xml
+<!--启动时候不检查 设置连接超时时间-->
+<dubbo:consumer check="false" timeout="600000"></dubbo:consumer>
+```
+
+
+
+### 3.4.5地址缓存
+
+地址缓存问题，围绕 `注册中心zookeeper` 服务是否关闭展开。
+
+服务消费者和服务生产者启动时，会将服务提供方地址缓存到本地，以后再调用则不会访问注册中心，会访问缓存中的地址。
+
+即第一次启动时 `注册中心zookeeper` 必须在线，，消费者将地址缓存到本地中后，`注册中心zookeeper` 宕机了也不影响。
+
+
+
+## 3.5Dubbo负载均衡
+
+当存在多个提供者时才需要考虑负载均衡
+
+### 3.5.1负载均衡概述
+
+负载均衡（Load Balance）：其实就是将请求分摊到多个操作单元上进行执行，从而共同完成工作任务。在集群负载均衡时，Dubbo 提供了多种均衡策略（包括随机、轮询、最少活跃调用数、一致性Hash），缺省为random随机调用。
+
+1. 随机算法 RandomLoadBalance（默认）
+2. 轮询算法 RoundRobinLoadBalance（不保证绝对轮询）
+3. 最小活跃数算法 LeastActiveLoadBalance
+4. 一致性hash算法 ConsistentHashLoadBalance
+
+配置负载均衡策略，既可以在服务提供者一方配置，也可以在服务消费者一方配置，两者选其一即可: 
+
+① 在服务消费者一方配置
+
+```java
+@RestController
+public class HelloController {
+
+    //在服务消费者一方配置负载均衡策略
+    @DubboReference(loadbalance = "roundrobin")
+    private HelloService helloService;
+```
+
+② 在服务提供者一方配置
+
+```java
+@DubboService(loadbalance = "roundrobin")
+public class HelloServiceImpl implements HelloService {
+    @Override
+    public String sayHello(String name) {
+        return "Hello:"+name;
+    }
+}
+```
+
+#### 
+
+### 3.5.2负载均衡实践
+
+准备环境：关闭`jetty`的热部署自动刷新，拷贝多个服务提供者`jetty`，依次修改以下配置后启动，模拟集群
+
+① `pom.xml`文件中`jetty`插件的端口设号置为不重复的端口
+
+② `spring-service.xml`中`dubbo`的端口号设置为不重复的端口
+
+③ 为了演示方便，将`HelloServiceImpl`的`sayHello`方法的返回值改成`return "hello:端口号" + name`
+
+④ 依次启动多个服务提供者`jetty`，然后启动一个服务消费者`jetty`进入页面，刷新页面测试。
+
+
+
+
+
+# 4 服务拆分
+
+## 4.1业务介绍
+
+### 4.1.1项目模块划分
+
+根据前面的介绍，目前我们的系统规划了3个dubbo服务提供者模块：权限服务、房源服务与会员服务，及2个服务消费者模块：尚好房管理平台（web-admin）与网站前端（web-front）
+
+Dubbo服务提供者模块：
+
+- 权限管理服务（ACL：Access Control List访问控制列表）
+- 房源管理服务（HRS：Housing Resources）
+- 会员管理服务（USER）
+
+Dubbo服务消费者模块：
+
+- 尚好房管理平台（web-admin）
+- 网站前端（web-front）
+
+
+
+### 4.1.2服务调用关系
+
+管理平台（web-admin） ⇆ Nginx ⇆ 	网页前端（web-front）
+
+管理平台（web-admin） ⇆ Dubbo服务(xx管理服务) ⇆ 	网页前端（web-front）
+
+
+
+### 4.1.3项目说明
+
+#### 4.1.3.1拆分步骤
+
+当前项目为单体的SSM项目，目前开发了权限管理的用户管理与角色管理，接下来要开发房源管理的数据字典、小区管理与房源管理，权限管理与房源管理属于两不同的dubbo服务，当前我们就来把单体架构拆分为dubbo通信的分布式架构，
+
+1. 父工程`shf_parent`模块管理dubbo相关的依赖
+2. 子模块`common_util`引入父模块的依赖
+3. 创建新模块`service-api`，该模块负责`服务层的API接口管理`和 `所有Dubbo服务提供者模块 ` 的依赖管理
+4. 提取子模块`web_admin`的service层API接口，交给`service-api`模块管理
+5. 创建新模块`service`作为service模块的父工程，删除src目录，引入依赖，负责所有子模块的聚合，打包方式设置为pom
+6. 创建`service`的子模块`service-acl`，作为权限管理服务模块，该模块要进行服务提供者相关配置
+7. 拆分子模块`web_admin`的dao层和service层实现类，resources目录中dao层service层的相关资源，交给`service-acl`模块管理
+8. 创建新模块`web`作为`所有Dubbo服务消费者模块`的父工程，删除src目录，负责所有子模块的聚合，打包方式设置为pom
+9. 子模块`web_admin` 设置`web`为父工程，并将`shf_parent`父工程中`web_admin` 相关聚合信息删除，配置服务消费者相关设置
+10. 启动`service-acl`与`web-admin`模块进行测试
+
+
+
+#### 4.1.3.2最终项目结构
+
+拆分前的项目结构：
+
+- shf_parent
+  - common_util
+  - model
+  - web_admin
+
+拆分后的项目结构:
+
+- shf_parent
+  - common_util
+  - model
+  - service_api（服务接口）
+  - service
+    - service_acl（权限管理服务）
+  - web
+    - web_admin（平台页面 / 服务消费者）
+
+
+
+## 4.2服务拆分
+
+### 4.2.1shf_parent
+
+在shf-parent模块pom.xml新增dubbo依赖
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.atguigu</groupId>
+    <artifactId>shf_parent</artifactId>
+    <!--打包方式设置为父工程，idea自动设置-->
+    <packaging>pom</packaging>
+    <version>1.0-SNAPSHOT</version>
+
+    <!--idea自动生成的聚合-->
+    <modules>
+        <module>common_util</module>
+        <module>model</module>
+        <module>service_api</module>
+        <module>service</module>
+        <module>web</module>
+    </modules>
+
+    <!--jar包的版本管理-->
+    <properties>
+        <java.version>1.8</java.version>
+        <spring.version>5.2.20.RELEASE</spring.version>
+        <thymeleaf.version>3.0.11.RELEASE</thymeleaf.version>
+        <pagehelper.version>4.1.6</pagehelper.version>
+        <servlet-api.version>4.0.1</servlet-api.version>
+        <fastjson.version>1.2.70</fastjson.version>
+        <mybatis.version>3.5.6</mybatis.version>
+        <mybatis.spring.version>2.0.6</mybatis.spring.version>
+        <mysql.version>8.0.25</mysql.version>
+        <druid.version>1.1.12</druid.version>
+        <commons-fileupload.version>1.3.1</commons-fileupload.version>
+        <slf4j-version>1.7.30</slf4j-version>
+        <logback-version>1.2.3</logback-version>
+        <dubbo.version>3.0.8</dubbo.version>
+    </properties>
+
+    <!--依赖管理，子类可按需引用继承-->
+    <dependencyManagement>
+        <dependencies>
+            <!-- SpringMVC相关 -->
+            <dependency>
+                <groupId>org.springframework</groupId>
+                <artifactId>spring-webmvc</artifactId>
+                <version>${spring.version}</version>
+            </dependency>
+            <!--spring封装的jdbc数据库访问-->
+            <dependency>
+                <groupId>org.springframework</groupId>
+                <artifactId>spring-jdbc</artifactId>
+                <version>${spring.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework</groupId>
+                <artifactId>spring-tx</artifactId>
+                <version>${spring.version}</version>
+            </dependency>
+            <!--Spring提供的对AspectJ框架的整合-->
+            <dependency>
+                <groupId>org.springframework</groupId>
+                <artifactId>spring-aspects</artifactId>
+                <version>${spring.version}</version>
+            </dependency>
+            <!--用于spring测试(没啥用，就是为了单元测试)-->
+            <dependency>
+                <groupId>org.springframework</groupId>
+                <artifactId>spring-test</artifactId>
+                <version>${spring.version}</version>
+            </dependency>
+
+            <!--用于springMVC模板-->
+            <dependency>
+                <groupId>org.thymeleaf</groupId>
+                <artifactId>thymeleaf-spring5</artifactId>
+                <version>${thymeleaf.version}</version>
+            </dependency>
+
+            <!--mybatis的分页插件-->
+            <dependency>
+                <groupId>com.github.pagehelper</groupId>
+                <artifactId>pagehelper</artifactId>
+                <version>${pagehelper.version}</version>
+            </dependency>
+            <!-- Mybatis -->
+            <dependency>
+                <groupId>org.mybatis</groupId>
+                <artifactId>mybatis</artifactId>
+                <version>${mybatis.version}</version>
+            </dependency>
+            <!-- Mybatis与Spring整合所需要的jar包 -->
+            <dependency>
+                <groupId>org.mybatis</groupId>
+                <artifactId>mybatis-spring</artifactId>
+                <version>${mybatis.spring.version}</version>
+            </dependency>
+            <!-- MySql -->
+            <dependency>
+                <groupId>mysql</groupId>
+                <artifactId>mysql-connector-java</artifactId>
+                <version>${mysql.version}</version>
+            </dependency>
+            <!-- 连接池 -->
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>druid</artifactId>
+                <version>${druid.version}</version>
+            </dependency>
+            <!-- 文件上传组件 -->
+            <dependency>
+                <groupId>commons-fileupload</groupId>
+                <artifactId>commons-fileupload</artifactId>
+                <version>${commons-fileupload.version}</version>
+            </dependency>
+
+            <!-- fastjson json转换的-->
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>fastjson</artifactId>
+                <version>${fastjson.version}</version>
+            </dependency>
+
+            <!-- 日志 -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j-version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>${logback-version}</version>
+            </dependency>
+          
+            <!--Dubbo相关jar包-->
+            <dependency>
+                <groupId>org.apache.dubbo</groupId>
+                <artifactId>dubbo</artifactId>
+                <version>${dubbo.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.dubbo</groupId>
+                <artifactId>dubbo-dependencies-zookeeper</artifactId>
+                <version>${dubbo.version}</version>
+                <type>pom</type>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <!--子类强制继承的依赖-->
+    <dependencies>
+        <dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
+            <version>${servlet-api.version}</version>
+            <!--Servlet-API  不会部署到服务器上-->
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- 控制Maven的编译版本：java编译插件，设置编译版本1.8-->
+            <!-- 其实之前在maven的配置文件中设置过，不加也行⚠️ -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.2</version>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+
+
+### 4.2.2common_util
+
+在common-util模块pom.xml引入依赖，该模块仍负责管理整个项目的依赖和提供工具类
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>shf_parent</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--version、groupId与父模块相同，可省略只写artifactId-->
+    <artifactId>common_util</artifactId>
+
+    <!--将父工程内管理的jar包都继承下来，可以不用加version-->
+    <dependencies>
+        <!-- SpringMVC相关 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+        </dependency>
+        <!--spring封装的jdbc数据库访问-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
+        <!--Spring提供的对AspectJ框架的整合-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-aspects</artifactId>
+        </dependency>
+        <!--用于spring测试-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+        </dependency>
+
+        <!--用于springMVC模板-->
+        <dependency>
+            <groupId>org.thymeleaf</groupId>
+            <artifactId>thymeleaf-spring5</artifactId>
+        </dependency>
+
+        <!--mybatis的分页插件-->
+        <dependency>
+            <groupId>com.github.pagehelper</groupId>
+            <artifactId>pagehelper</artifactId>
+        </dependency>
+        <!-- Mybatis -->
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis</artifactId>
+        </dependency>
+        <!-- Mybatis与Spring整合所需要的jar包 -->
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis-spring</artifactId>
+        </dependency>
+        <!-- MySql -->
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+        </dependency>
+        <!-- 连接池 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>druid</artifactId>
+        </dependency>
+        <!-- 文件上传组件 -->
+        <dependency>
+            <groupId>commons-fileupload</groupId>
+            <artifactId>commons-fileupload</artifactId>
+        </dependency>
+
+        <!-- fastjson -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+        </dependency>
+
+        <!-- 日志 -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+
+        <!--Dubbo相关jar包-->
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-dependencies-zookeeper</artifactId>
+          	<!--默认type值为jar，设置为pom后无法添加到当前模块的类路径⚠️-->
+            <type>pom</type>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+
+
+### 4.2.3service_api
+
+创建service_api模块，引入依赖，剪切web_admin模块的service接口，该模块仍负责管理service项目依赖和service层API接口
+
+#### 4.2.3.1pom.xml
+
+pom.xml引入common_util和model依赖
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>shf_parent</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>service_api</artifactId>
+    <packaging>jar</packaging>
+
+    <!--直接依赖兄弟模块common_util和model，根据依赖传递的特性可使用他们compile的jar包-->
+    <dependencies>
+        <!--使用兄弟模块common_util的依赖-->
+        <dependency>
+            <groupId>com.atguigu</groupId>
+            <artifactId>common_util</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <!--使用兄弟模块model的依赖-->
+        <dependency>
+            <groupId>com.atguigu</groupId>
+            <artifactId>model</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+
+</project>
+```
+
+
+
+#### 4.2.3.2serviceAPI
+
+从web_admin模块中剪切的service层接口，com.atguigu.service目录下的接口文件
+
+AdminService接口：
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.Admin;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.RoleService
+ */
+public interface AdminService extends BaseService<Admin> {
+
+}
+```
+
+RoleService接口：
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.Role;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.RoleService
+ */
+public interface RoleService extends BaseService<Role> {
+
+}
+```
+
+
+
+### 4.2.4service
+
+创建service模块，删除src目录，引入依赖，负责所有子模块的聚合，打包方式设置为pom，作为所有service项目的父工程
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>shf_parent</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>service</artifactId>
+    <packaging>pom</packaging>
+    <modules>
+        <module>service_acl</module>
+    </modules>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.atguigu</groupId>
+            <artifactId>service_api</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+
+
+### 4.2.5service_acl
+
+创建service_acl模块，继承service父工程，剪切web_admin的dao层和service层实现类及resources目录中的相关资源
+
+#### 4.2.5.1pom.xml
+
+修改pom.xml文件，加入相关依赖，打包方式设置为war包
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>service</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>service_acl</artifactId>
+    <packaging>war</packaging>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-maven-plugin</artifactId>
+                <version>9.4.15.v20190215</version>
+                <configuration>
+                    <!-- 如果检测到项目有更改则自动热部署，每隔n秒扫描一次。默认为0，即不扫描-->
+                    <scanIntervalSeconds>10</scanIntervalSeconds>
+                    <webAppConfig>
+                        <!--指定web项目的根路径，默认为/ -->
+                        <contextPath>/</contextPath>
+                    </webAppConfig>
+                    <httpConnector>
+                        <!--端口号，默认 8080-->
+                        <port>7001</port>
+                    </httpConnector>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+
+
+#### 4.2.5.2添加Web结构
+
+打包方式设置为war包后，在模块结构上按指定路径添加web.xml文件
+
+
+
+#### 4.2.5.3dao层
+
+从web_admin模块中剪切的dao层文件，com.atguigu.dao目录下的文件，不做任何修改
+
+
+
+#### 4.2.5.4service层
+
+从web_admin模块中剪切的service层实现类，com.atguigu.service.impl目录下的接口实现类
+
+修改AdminControllerImpl、RoleControlleImplr，并添加Dubbo服务的相关注解@DubboService⚠️
+
+AdminServiceImpl文件：
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.AdminDao;
+import com.atguigu.dao.BaseDao;
+import com.atguigu.entity.Admin;
+import com.atguigu.service.AdminService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.RoleServiceImpl
+ */
+@DubboService
+public class AdminServiceImpl extends BaseServiceImpl<Admin> implements AdminService {
+    @Autowired
+    private AdminDao adminDao;
+
+    @Override
+    public BaseDao<Admin> getEntityDao() {
+        return adminDao;
+    }
+
+}
+```
+
+RoleServiceImpl：
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.dao.RoleDao;
+import com.atguigu.entity.Role;
+import com.atguigu.service.RoleService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.RoleServiceImpl
+ */
+@DubboService
+public class RoleServiceImpl extends BaseServiceImpl<Role> implements RoleService {
+    @Autowired
+    private RoleDao roleDao;
+
+    @Override
+    public BaseDao<Role> getEntityDao() {
+        return roleDao;
+    }
+
+}
+```
+
+
+
+#### 4.2.5.5Resources目录结构
+
+从web_admin复制的resources中和dao层service层相关的目录结构：
+
+- mapper
+  - AdminDao.xml（未改动）
+  - RoleDao.xml（未改动）
+- spring
+  - spring-registry.xml（未改动）
+  - spring-dao.xml（有改动）⚠️
+  - spring-service.xml（未改动）
+- db.properties（未改动）
+- logback.xml（未改动）
+- mybatis-config.xml（未改动）
+
+
+
+#### 4.2.5.6spring-registry.xml
+
+配置服务提供者的相关信息：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+    <!-- 定义服务提供者名称名称 -->
+    <dubbo:application name="service_acl"/>
+
+    <!--指定暴露服务的端口，如果不指定默认为20880 -->
+    <dubbo:protocol name="dubbo" port="20881"/>
+
+    <!--指定服务注册中心地址-->
+    <dubbo:registry address="zookeeper://localhost:2181"/>
+
+    <!--批量扫描，发布服务-->
+    <dubbo:annotation package="com.atguigu"/>
+</beans>
+```
+
+
+
+#### 4.2.5.7web.xml
+
+加载spring容器
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd"
+         version="4.0">
+
+    <!-- 加载spring容器 -->
+    <context-param>
+        <param-name>contextConfigLocation</param-name>
+        <!-- 使用通配符，一次性加载spring目录下的所有spring容器 -->
+        <param-value>classpath:spring/spring-*.xml</param-value>
+    </context-param>
+    <listener>
+        <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+    </listener>
+</web-app>
+```
+
+
+
+### 4.2.6web
+
+创建web模块，删除src目录，引入依赖，负责所有子模块的聚合，打包方式设置为pom，作为所有前端项目的父工程
+
+将web_admin模块剪切到该模块目录下，并配置为该模块的子模块，同时去掉父工程shf_parent中的聚合信息
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>shf_parent</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>web</artifactId>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>web_admin</module>
+    </modules>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.atguigu</groupId>
+            <artifactId>service_api</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+
+</project>
+```
+
+
+
+### 4.2.7web_admin
+
+将web_admin目录移动到web目录内
+
+删除shf-parent模块pom.xml文件的<module>web-admin</module>标签，改模块的聚合已移动到web模块
+
+#### 4.2.7.1pom.xml
+
+修改了父模块为web，删除了依赖（父模块已引入依赖）
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>web</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--version、groupId与父模块相同，可省略只写artifactId-->
+    <artifactId>web_admin</artifactId>
+
+    <!--设置打包方式为war包-->
+    <packaging>war</packaging>
+
+
+    <!--设置服务器jetty的参数，以Maven的插件形式存在-->
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-maven-plugin</artifactId>
+                <version>9.4.15.v20190215</version>
+                <configuration>
+                    <!-- 如果检测到项目有更改则自动热部署，每隔n秒扫描一次。默认为0，即不扫描-->
+                    <scanIntervalSeconds>10</scanIntervalSeconds>
+                    <webAppConfig>
+                        <!--指定web项目的根路径，默认为/    设置上下文路径-->
+                        <contextPath>/</contextPath>
+                    </webAppConfig>
+                    <httpConnector>
+                        <!--设置端口号，默认 8080-->
+                        <port>8000</port>
+                    </httpConnector>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+
+
+#### 4.2.7.2改造controller层
+
+修改AdminController、RoleController中的service层对象注入标签，再使用service时需要向注册中心获取
+
+RoleController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.Role;
+import com.atguigu.service.RoleService;
+import com.github.pagehelper.PageInfo;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import javax.servlet.http.HttpServletRequest;
+import java.util.Map;
+
+
+/**
+ * TODD
+ * @AllClassName: com.atguigu.controller.RoleController
+ */
+@Controller
+@RequestMapping("/role")
+public class RoleController extends BaseController {
+
+    private final static String PAGE_INDEX = "role/index";
+    private final static String PAGE_CREATE = "role/create";
+    private final static String PAGE_EDIT = "role/edit";
+    private final static String PAGE_SUCCESS = "common/success";
+    private final static String LIST_ACTION = "redirect:/role";
+
+    @DubboReference
+    private RoleService roleService;
+
+    /**
+     * 处理/请求，跳转到index页，搜索处理、分页处理
+     */
+    @RequestMapping
+    public String index(Map map, HttpServletRequest request) {
+        //处理请求参数
+        Map<String,Object> filters = getFilters(request);
+        //传递参数到service层，拿到查询结果并构建分页对象
+        PageInfo<Role> page = roleService.findPage(filters);
+
+        //将PageInfo分页对象放到请求域，里面有分页信息和搜索结果
+        map.put("page", page);
+        //搜索内容的回显
+        map.put("filters", filters);
+
+        return PAGE_INDEX;
+    }
+
+    /**
+     * 处理/create请求，跳转到添加资源页面
+     */
+    @RequestMapping("/create")
+    public String create() {
+        return PAGE_CREATE;
+    }
+
+    /**
+     * 处理/save请求，执行添加资源操作
+     */
+    @RequestMapping("/save")
+    public String save(Role role) {
+        roleService.insert(role);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * 处理/edit/id请求，跳转到修改资源页面
+     */
+    @RequestMapping("/edit/{id}")
+    public String edit(
+            @PathVariable Long id,
+            Map map
+    ) {
+        Role role = roleService.getById(id);
+        map.put("role",role);
+        return PAGE_EDIT;
+    }
+
+    /**
+     * 处理/update请求，执行资源修改操作
+     */
+    @RequestMapping(value="/update")
+    public String update(Role role) {
+        roleService.update(role);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * 处理/delete/id请求，执行资源删除操作
+     */
+    @RequestMapping("/delete/{id}")
+    public String delete(@PathVariable Long id) {
+        roleService.delete(id);
+        //不是在iframe窗体内执行操作，直接重定向即可
+        return LIST_ACTION;
+    }
+
+}
+```
+
+AdminController
+
+```java
+package com.atguigu.controller;
+
+
+import com.atguigu.entity.Admin;
+import com.atguigu.service.AdminService;
+import com.github.pagehelper.PageInfo;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import javax.servlet.http.HttpServletRequest;
+import java.util.Map;
+
+
+/**
+ * TODD
+ * @AllClassName: com.atguigu.controller.AdminController
+ */
+@Controller
+@RequestMapping("/admin")
+public class AdminController extends BaseController {
+
+    private final static String PAGE_INDEX = "admin/index";
+    private final static String PAGE_CREATE = "admin/create";
+    private final static String PAGE_EDIT = "admin/edit";
+    private final static String PAGE_SUCCESS = "common/success";
+    private final static String LIST_ACTION = "redirect:/admin";
+
+    @DubboReference
+    private AdminService adminService;
+
+    /**
+     *  处理/请求，跳转到index页，搜索处理、分页处理
+     */
+    @RequestMapping
+    public String index(Map map, HttpServletRequest request) {
+        //处理请求参数
+        Map<String,Object> filters = getFilters(request);
+        //传递参数到service层，拿到查询结果并构建分页对象
+        PageInfo<Admin> page = adminService.findPage(filters);
+
+        //将PageInfo分页对象放到请求域，里面有分页信息和搜索结果
+        map.put("page", page);
+        //搜索内容的回显
+        map.put("filters", filters);
+
+        return PAGE_INDEX;
+    }
+
+    /**
+     * 处理/create请求，跳转到添加资源页面
+     */
+    @RequestMapping("/create")
+    public String create() {
+        return PAGE_CREATE;
+    }
+
+    /**
+     * 处理/save请求，执行添加资源操作
+     */
+    @RequestMapping("/save")
+    public String save(Admin admin) {
+        adminService.insert(admin);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * 处理/edit/id请求，跳转到修改资源页面
+     */
+    @RequestMapping("/edit/{id}")
+    public String edit(
+            @PathVariable Long id,
+            Map map
+    ) {
+        Admin admin = adminService.getById(id);
+        map.put("admin",admin);
+        return PAGE_EDIT;
+    }
+
+    /**
+     * 处理/update请求，执行资源修改操作
+     */
+    @RequestMapping(value="/update")
+    public String update(Admin admin) {
+        adminService.update(admin);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * 处理/delete/id请求，执行资源删除操作
+     */
+    @RequestMapping("/delete/{id}")
+    public String delete(@PathVariable Long id) {
+        adminService.delete(id);
+        //不是在iframe窗体内执行操作，直接重定向即可
+        return LIST_ACTION;
+    }
+
+}
+```
+
+
+
+#### 4.2.7.3删除资源
+
+删除service与dao层包下的代码，删除mapper文件夹，删除mybatis-config.xml文件
+
+resources目录结构：
+
+- spring
+
+  - spring-registry.xml（新增）⚠️
+  - spring-mvc.xml（修改）⚠️
+
+- logback.xml（未修改）
+
+  
+
+#### 4.2.7.4spring-registry.xml
+
+配置服务消费者的相关信息，注意不要设置扫描包，在spring-mvc.xml文件内统一设置：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!--这里不需要设置扫描包，springMvc中已经设置了，不然会冲突⚠️-->
+    <!--<context:component-scan base-package="com.atguigu.controller"/>-->
+
+    <!--配置dubbo应用程序名称-->
+    <dubbo:application name="web_admin"></dubbo:application>
+
+    <!--注册配置中心-->
+    <dubbo:registry address="zookeeper://localhost:2181"></dubbo:registry>
+
+    <!--启动时候不检查 设置连接超时时间-->
+    <dubbo:consumer check="false" timeout="600000"></dubbo:consumer>
+</beans>
+```
+
+
+
+#### 4.2.7.5spring-mvc.xml
+
+使用<import resource="spring-registry.xml"/>导入服务消费者配置文件，一块注册到IoC容器中。
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:mvc="http://www.springframework.org/schema/mvc"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd http://www.springframework.org/schema/mvc https://www.springframework.org/schema/mvc/spring-mvc.xsd">
+
+    <!--将spring-registry.xml引入到spring-mvc中，相当于把内容复制到该文件内-->
+    <!--其实可以将spring-registry.xml内容都写在该文件内，不过不方便维护-->
+    <import resource="spring-registry.xml"/>
+
+    <!--controller包的注解扫描-->
+    <context:component-scan base-package="com.atguigu.controller"/>
+
+    <!--配置视图解析器 ：Thymeleaf  SpringBoot之后是不需要自己配置-->
+    <bean class="org.thymeleaf.spring5.view.ThymeleafViewResolver" id="viewResolver">
+        <!--配置字符集属性-->
+        <property name="characterEncoding" value="UTF-8"></property>
+        <!--配置模板引擎属性-->
+        <property name="templateEngine">
+            <!--配置内部bean-->
+            <bean class="org.thymeleaf.spring5.SpringTemplateEngine">
+                <!--配置模块的解析器属性-->
+                <property name="templateResolver">
+                    <!--配置内部bean-->
+                    <bean class="org.thymeleaf.spring5.templateresolver.SpringResourceTemplateResolver">
+                        <!--配置前缀  ★-->
+                        <property name="prefix" value="/WEB-INF/pages/"></property>
+                        <!--配置后缀  ★-->
+                        <property name="suffix" value=".html"></property>
+                        <!--配置字符集-->
+                        <property name="characterEncoding" value="UTF-8"></property>
+                    </bean>
+                </property>
+            </bean>
+        </property>
+    </bean>
+
+    <!--mvc的驱动设置，fastjson转换器的添加-->
+    <mvc:annotation-driven>
+        <mvc:message-converters register-defaults="true">
+            <!-- 配置Fastjson支持 -->
+            <bean class="com.alibaba.fastjson.support.spring.FastJsonHttpMessageConverter">
+                <property name="supportedMediaTypes">
+                    <list>
+                        <value>text/html;charset=UTF-8</value>
+                        <value>application/json</value>
+                    </list>
+                </property>
+            </bean>
+        </mvc:message-converters>
+    </mvc:annotation-driven>
+
+    <!--静态资源访问-->
+    <mvc:default-servlet-handler/>
+
+    <!--配置首页访问-->
+    <mvc:view-controller path="index.html" view-name="frame/index"/>
+    <mvc:view-controller path="main" view-name="frame/main"/>
+
+</beans>
+```
+
+
+
+### 4.2.8Web.xml
+
+web.xml中取消加载spring目录下的xml文件，否则会加载重复
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd"
+         version="4.0">
+
+    <!-- 解决post乱码 添加字符编码过滤器 -->
+    <filter>
+        <filter-name>encode</filter-name>
+        <filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+        <init-param>
+            <param-name>encoding</param-name>
+            <param-value>UTF-8</param-value>
+        </init-param>
+        <init-param>
+            <param-name>forceRequestEncoding</param-name>
+            <param-value>true</param-value>
+        </init-param>
+    </filter>
+    <filter-mapping>
+        <filter-name>encode</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <!-- 配置SpringMVC框架前端控制器 -->
+    <servlet>
+        <servlet-name>dispatcherServlet</servlet-name>
+        <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+        <init-param>
+            <param-name>contextConfigLocation</param-name>
+            <param-value>classpath:spring/spring-mvc.xml</param-value>
+        </init-param>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>dispatcherServlet</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+    
+</web-app>
+```
+
+
+
+### 4.2.9测试
+
+启动`service-acl`与`web-admin`模块进行测试
+
+服务提供者：service-acl
+
+服务消费者：web-admin
+
+
+
+
+
