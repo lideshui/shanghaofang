@@ -1,31 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-
-    <link rel="shortcut icon" th:href="@{/static/favicon.ico}">
-    <link th:href="@{/static/css/bootstrap.min.css?v=3.3.7}" rel="stylesheet">
-    <link th:href="@{/static/css/font-awesome.css?v=4.4.0}" rel="stylesheet">
-
-    <!-- Data Tables -->
-    <link th:href="@{/static/css/plugins/dataTables/dataTables.bootstrap.css}" rel="stylesheet">
-
-    <link th:href="@{/static/css/animate.css}" rel="stylesheet">
-    <link th:href="@{/static/css/style.css?v=4.1.0}" rel="stylesheet">
-
-    <!-- 全局js -->
-    <script th:src="@{/static/js/jquery.min.js?v=2.1.4}"></script>
-    <script th:src="@{/static/js/bootstrap.min.js?v=3.3.7}"></script>
-    <script th:src="@{/static/js/plugins/jeditable/jquery.jeditable.js}"></script>
-    <!-- Data Tables -->
-    <script th:src="@{/static/js/plugins/dataTables/jquery.dataTables.js}"></script>
-    <script th:src="@{/static/js/plugins/dataTables/dataTables.bootstrap.js}"></script>
-
-    <!-- 弹出层js -->
-    <script th:src="@{/static/js/plugins/layer/layer.min.js}"></script>
-    <script th:src="@{/static/js/myLayer.js}"></script>
-</head>
+<head th:include="common/head :: head"></head>
 <body class="gray-bg">
 <!--查询角色的表单-->
 <form id="ec" th:action="@{/role}" method="post">
@@ -87,83 +62,7 @@
                         </table>
 
                         <!--分页插件页码开始-->
-                        <!--将当前页码添加到表单项中，随着点击页码按钮而作为请求参数提交-->
-                        <input type="hidden" name="pageNum" id="pageNum" th:value="${page.pageNum}"/>
-                        <div class="row">
-                            <div class="col-sm-6">
-                                <div class="dataTables_info" id="DataTables_Table_0_info" role="alert"
-                                     aria-live="polite" aria-relevant="all">显示
-                                    <span th:text="${page.startRow}"></span> 到 <span th:text="${page.endRow}"></span> 项，
-                                    共 <span th:text="${page.total}"></span> 项
-                                </div>
-                            </div>
-                            <div class="col-sm-6">
-                                <div class="dataTables_paginate paging_simple_numbers" id="DataTables_Table_0_paginate">
-                                    <ul class="pagination">
-
-                                        <!--页码开始-->
-                                        <!--首页，两种样式，根据是否为首页进行切换⚠️-->
-                                        <li th:if="${page.isFirstPage}" class="paginate_button previous disabled"
-                                            aria-controls="DataTables_Table_0" tabindex="0">
-                                            <!--若当前页是首页，则无法点击首页跳转-->
-                                            <a href="javascript:;">首页</a>
-                                        </li>
-                                        <li th:if="${!page.isFirstPage}" class="paginate_button previous"
-                                            aria-controls="DataTables_Table_0" tabindex="0">
-                                            <!--若当前页不是首页，修改当前页pageNum的value值为1，点击即可提交表单跳转到首页-->
-                                            <a th:href="'javascript:document.forms.ec.pageNum.value=1;document.forms.ec.submit();'">首页</a>
-                                        </li>
-
-                                        <!--上一页，两种样式，根据是否为首页进行切换⚠️-->
-                                        <li th:if="${page.isFirstPage}" class="paginate_button previous disabled"
-                                            aria-controls="DataTables_Table_0" tabindex="0">
-                                            <!--若当前页是首页，则无法点击上一页跳转-->
-                                            <a href="javascript:;">上一页</a>
-                                        </li>
-                                        <li th:if="${!page.isFirstPage}" class="paginate_button previous"
-                                            aria-controls="DataTables_Table_0" tabindex="0">
-                                            <!--若当前页不是首页，修改当前页pageNum的value值为上一页prePage属性的值，点击即可提交表单跳转到首页-->
-                                            <a th:href="'javascript:document.forms.ec.pageNum.value='+${page.prePage}+';document.forms.ec.submit();'">上一页</a>
-                                        </li>
-
-                                        <!--页码，循环所有导航页号navigatepageNums，并判断是否为当前页，设置active样式-->
-                                        <li th:class="${i==page.pageNum?'paginate_button active':'paginate_button'}"
-                                            aria-controls="DataTables_Table_0" tabindex="0"
-                                            th:each="i:${page.navigatepageNums}">
-                                            <!--为每个导航页码都赋值上跳转到自己页面的超链接-->
-                                            <a th:href="'javascript:document.forms.ec.pageNum.value='+${i}+';document.forms.ec.submit();'"
-                                               th:text="${i}"></a>
-                                        </li>
-
-                                        <!--下一页，两种样式，根据是否为尾页进行切换⚠️-->
-                                        <li th:if="${page.isLastPage}" class="paginate_button next disabled"
-                                            aria-controls="DataTables_Table_0" tabindex="0">
-                                            <!--若当前页是尾页，则无法点击下一页跳转-->
-                                            <a href="javascript:;">下一页</a>
-                                        </li>
-                                        <li th:if="${!page.isLastPage}" class="paginate_button next"
-                                            aria-controls="DataTables_Table_0" tabindex="0">
-                                            <!--若当前页不是尾页，修改当前页pageNum的value值为下一页nextPage属性的值，点击即可提交表单跳转到首页-->
-                                            <a th:href="'javascript:document.forms.ec.pageNum.value='+${page.nextPage}+';document.forms.ec.submit();'">下一页</a>
-                                        </li>
-
-                                        <!--尾页，两种样式，根据是否为尾页进行切换⚠️-->
-                                        <li th:if="${page.isLastPage}" class="paginate_button next disabled"
-                                            aria-controls="DataTables_Table_0" tabindex="0">
-                                            <!--若当前页是尾页，则无法点击尾页跳转-->
-                                            <a href="javascript:;">尾页</a>
-                                        </li>
-                                        <li th:if="${!page.isLastPage}" class="paginate_button next"
-                                            aria-controls="DataTables_Table_0" tabindex="0">
-                                            <!--若当前页不是尾页，修改当前页pageNum的value值为总页数pages属性的值，点击即可提交表单跳转到尾页-->
-                                            <a th:href="'javascript:document.forms.ec.pageNum.value='+${page.pages}+';document.forms.ec.submit();'">尾页</a>
-                                        </li>
-                                        <!--页码结束-->
-
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
+                        <div class="row" th:include="common/pagination :: pagination"></div>
                         <!--分页插件页码结束-->
 
                     </div>

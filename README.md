@@ -2803,3 +2803,687 @@ public class RoleController {
 
 
 
+## 2.4管理代码封装
+
+### 2.4.1封装dao层
+
+在common_util模块下进行封装
+
+#### 2.4.1.1封装BaseDao
+
+```java
+package com.atguigu.dao;
+
+import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.BaseDao
+ */
+public interface BaseDao<T> {
+
+    /**
+     * 获取index页面的列表实体数据，以及查询结果的分页展示
+     */
+    List<T> findPage(Map<String,Object> filters);
+
+
+    /**
+     * 插入一个实体
+     */
+    void insert(T t);
+
+
+    /**
+     * 根据ID删除实体，参数ID可以是字符串型也可以是整型
+     */
+    void delete(Serializable id);
+
+
+    /**
+     * 更新一个实体
+     */
+    void update(T t);
+
+
+    /**
+     * 根据ID获取实体，参数ID可以是字符串型也可以是整型
+     */
+    T getById(Serializable id);
+
+}
+```
+
+
+
+#### 2.4.1.2改造RoleDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.Role;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.RoleDao
+ */
+public interface RoleDao extends BaseDao<Role> {
+
+}
+```
+
+
+
+### 2.4.2封装service层
+
+在common_util模块下进行封装
+
+#### 2.4.2.1封装BaseService
+
+```java
+package com.atguigu.service;
+
+import com.github.pagehelper.PageInfo;
+import java.io.Serializable;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.BaseService
+ */
+public interface BaseService<T> {
+
+    /**
+     * 获取实体数据，包装到PageInfo分页对象中返回
+     */
+    PageInfo<T> findPage(Map<String,Object> filters);
+
+
+    /**
+     * 插入一个实体
+     */
+    void insert(T t);
+
+
+    /**
+     * 根据ID删除实体，参数ID可以是字符串型也可以是整型
+     */
+    void delete(Serializable id);
+
+
+    /**
+     * 更新一个实体
+     */
+    void update(T t);
+
+
+    /**
+     * 根据ID获取实体，参数ID可以是字符串型也可以是整型
+     */
+    T getById(Serializable id);
+
+}
+```
+
+
+
+#### 2.4.2.2改造RoleService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.Role;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.RoleService
+ */
+public interface RoleService extends BaseService<Role> {
+
+}
+```
+
+
+
+#### 2.4.2.3封装BaseServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.service.BaseService;
+import com.atguigu.util.CastUtil;
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
+import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * TODD
+ * @AllClassName: com.atguigu.service.impl.BaseServiceImpl
+ */
+public abstract class BaseServiceImpl<T> implements BaseService<T> {
+
+
+    //模版方法设计模式，通过该抽象方法获取实际的dao层对象
+    //service层实现类重写该方法返回dao层对象，就可以用该方法返回值调用其他方法⚠️
+    public abstract BaseDao<T> getEntityDao();
+
+    /**
+     * 搜索结果分页显示
+     */
+    @Override
+    public PageInfo<T> findPage(Map<String, Object> filters) {
+        //当前页数，common-util引入工具类：CastUtil
+        //先获取请求参数处理方法getFilters中设置的初始化值，未设置时使用默认值⚠️
+        int pageNum = CastUtil.castInt(filters.get("pageNum"), 1);
+        //每页显示的记录条数
+        int pageSize = CastUtil.castInt(filters.get("pageSize"), 3);
+
+        //分页插件，必须设置在查询之前⚠️
+        PageHelper.startPage(pageNum, pageSize);
+        //使用方法返回的dao层对象调用
+        List<T> list = getEntityDao().findPage(filters);
+        //构造方法中传入list集合和每页显示条数
+        //通过pageInfo.getList()可获取list集合的数据，将pageInfo对象放到请求域就可以共享到前端
+        return new PageInfo<T>(list, 3);
+    }
+
+
+    /**
+     * 新增一个实体
+     */
+    @Override
+    public void insert(T t) {
+        getEntityDao().insert(t);
+    }
+
+
+    /**
+     * 根据ID获取实体，参数ID可以是字符串型也可以是整型
+     */
+    @Override
+    public T getById(Serializable id) {
+        return getEntityDao().getById(id);
+    }
+
+
+    /**
+     * 更新一个实体
+     */
+    @Override
+    public void update(T t) {
+        getEntityDao().update(t);
+    }
+
+
+    /**
+     * 根据ID删除实体，参数ID可以是字符串型也可以是整型
+     */
+    @Override
+    public void delete(Serializable id) {
+        getEntityDao().delete(id);
+    }
+
+}
+```
+
+
+
+#### 2.4.2.4改造RoleServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.dao.RoleDao;
+import com.atguigu.entity.Role;
+import com.atguigu.service.RoleService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.RoleServiceImpl
+ */
+@Service
+public class RoleServiceImpl extends BaseServiceImpl<Role> implements RoleService {
+    @Autowired
+    private RoleDao roleDao;
+
+    @Override
+    public BaseDao<Role> getEntityDao() {
+        return roleDao;
+    }
+
+}
+```
+
+
+
+### 2.4.3封装Controller层
+
+在common_util模块下进行封装
+
+#### 2.4.3.1封装BaseController
+
+```java
+package com.atguigu.controller;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.Enumeration;
+import java.util.Map;
+import java.util.TreeMap;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.BaseController
+ */
+public class BaseController {
+
+    /**
+     * 封装页面提交的分页参数及搜索条件
+     * @param request
+     * @return
+     */
+    protected Map<String, Object> getFilters(HttpServletRequest request) {
+        Enumeration<String> paramNames = request.getParameterNames();
+        Map<String, Object> filters = new TreeMap();
+        while(paramNames != null && paramNames.hasMoreElements()) {
+            String paramName = (String)paramNames.nextElement();
+            String[] values = request.getParameterValues(paramName);
+            if (values != null && values.length != 0) {
+                if (values.length > 1) {
+                    filters.put(paramName, values);
+                } else {
+                    //若只有一个value，只向Map集合中放value本身
+                    filters.put(paramName, values[0]);
+                }
+            }
+        }
+        //判断请求参数内没有pageNum和pageSize的话，初始值设置为1和3
+        if(!filters.containsKey("pageNum")) {
+            filters.put("pageNum", 1);
+        }
+        if(!filters.containsKey("pageSize")) {
+            filters.put("pageSize", 3);
+        }
+
+        return filters;
+    }
+}
+```
+
+
+
+#### 2.4.3.2改造RoleController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.Role;
+import com.atguigu.service.RoleService;
+import com.github.pagehelper.PageInfo;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import javax.servlet.http.HttpServletRequest;
+import java.util.Map;
+
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.RoleController
+ */
+@Controller
+@RequestMapping("/role")
+public class RoleController extends BaseController {
+
+    private final static String PAGE_INDEX = "role/index";
+    private final static String PAGE_CREATE = "role/create";
+    private final static String PAGE_EDIT = "role/edit";
+    private final static String PAGE_SUCCESS = "common/success";
+    private final static String LIST_ACTION = "redirect:/role";
+
+    @Autowired
+    private RoleService roleService;
+
+    /**
+     * @Description: 处理/role请求，搜索处理、分页处理
+     */
+    @RequestMapping
+    public String index(Map map, HttpServletRequest request) {
+        //处理请求参数
+        Map<String,Object> filters = getFilters(request);
+        //传递参数到service层，拿到查询结果并构建分页对象
+        PageInfo<Role> page = roleService.findPage(filters);
+
+        //将PageInfo分页对象放到请求域，里面有分页信息和搜索结果
+        map.put("page", page);
+        //搜索内容的回显
+        map.put("filters", filters);
+
+        return PAGE_INDEX;
+    }
+
+    /**
+     * @Description: 处理/create请求，跳转到添加角色页面
+     */
+    @RequestMapping("/create")
+    public String create() {
+        return PAGE_CREATE;
+    }
+
+    /**
+     * @Description: 处理/save请求，执行添加角色操作
+     */
+    @RequestMapping("/save")
+    public String save(Role role) {
+        roleService.insert(role);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * @Description: 处理/edit/id请求，跳转到修改角色页面
+     */
+    @RequestMapping("/edit/{id}")
+    public String edit(
+            @PathVariable Long id,
+            Map map
+    ) {
+        Role role = roleService.getById(id);
+        map.put("role",role);
+        return PAGE_EDIT;
+    }
+
+    /**
+     * @Description: 处理/update请求，执行角色修改操作
+     */
+    @RequestMapping(value="/update")
+    public String update(Role role) {
+        roleService.update(role);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * @Description: 处理/delete/id请求，执行角色删除操作
+     */
+    @RequestMapping("/delete/{id}")
+    public String delete(@PathVariable Long id) {
+        roleService.delete(id);
+        //不是在iframe窗体内执行操作，直接重定向即可
+        return LIST_ACTION;
+    }
+
+}
+```
+
+
+
+### 2.4.4封装Thymeleaf模板
+
+在wb_admin模块下进行封装
+
+#### 2.4.4.1封装头部资源引用
+
+在common下新建：head.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+</head>
+<body>
+
+<div th:fragment="head">
+    <title>权限管理系统</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge,chrome=1"/>
+    <meta name="renderer" content="webkit"/>
+    <meta http-equiv="Cache-Control" content="no-siteapp"/>
+
+    <link rel="shortcut icon" th:href="@{favicon.ico}"/>
+    <link rel="shortcut icon" th:href="@{/static/favicon.ico}">
+    <link th:href="@{/static/css/bootstrap.min.css?v=3.3.7}" rel="stylesheet">
+    <link th:href="@{/static/css/font-awesome.css?v=4.4.0}" rel="stylesheet">
+
+    <!-- Data Tables -->
+    <link th:href="@{/static/css/plugins/dataTables/dataTables.bootstrap.css}" rel="stylesheet">
+
+    <link th:href="@{/static/css/animate.css}" rel="stylesheet">
+    <link th:href="@{/static/css/style.css?v=4.1.0}" rel="stylesheet">
+
+    <!-- 全局js -->
+    <script th:src="@{/static/js/jquery.min.js?v=2.1.4}"></script>
+    <script th:src="@{/static/js/bootstrap.min.js?v=3.3.7}"></script>
+    <script th:src="@{/static/js/plugins/jeditable/jquery.jeditable.js}"></script>
+    <!-- Data Tables -->
+    <script th:src="@{/static/js/plugins/dataTables/jquery.dataTables.js}"></script>
+    <script th:src="@{/static/js/plugins/dataTables/dataTables.bootstrap.js}"></script>
+
+    <!-- 弹出层js -->
+    <script th:src="@{/static/js/plugins/layer/layer.min.js}"></script>
+    <script th:src="@{/static/js/myLayer.js}"></script>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 2.4.4.2引用头部封装模版
+
+增改查页面head部分全部替换：
+
+```html
+<head th:include="common/head :: head"></head>
+```
+
+
+
+#### 2.4.4.3封装分页插件样式
+
+在common下新建：pagination.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <title>Title</title>
+</head>
+<body>
+
+<div class="row" th:fragment="pagination">
+    <!--将每页的数量作为请求参数提交，可修改每页最多显示的条数-->
+    <input type="hidden" name="pageSize" id="pageSize" th:value="${page.pageSize}"/>
+    <!--将当前页码作为请求参数提交，切换不同页码的页面-->
+    <input type="hidden" name="pageNum" id="pageNum" th:value="${page.pageNum}"/>
+    <div class="col-sm-6">
+        <div class="dataTables_info" id="DataTables_Table_0_info" role="alert"
+             aria-live="polite" aria-relevant="all">显示
+            <span th:text="${page.startRow}"></span> 到 <span th:text="${page.endRow}"></span> 项，
+            共 <span th:text="${page.total}"></span> 项
+        </div>
+    </div>
+    <div class="col-sm-6">
+        <div class="dataTables_paginate paging_simple_numbers" id="DataTables_Table_0_paginate">
+            <ul class="pagination">
+
+                <!--页码开始-->
+                <!--首页，两种样式，根据是否为首页进行切换⚠️-->
+                <li th:if="${page.isFirstPage}" class="paginate_button previous disabled" aria-controls="DataTables_Table_0" tabindex="0">
+                    <!--若当前页是首页，则无法点击首页跳转-->
+                    <a href="javascript:;">首页</a>
+                </li>
+                <li th:if="${!page.isFirstPage}" class="paginate_button previous" aria-controls="DataTables_Table_0" tabindex="0">
+                    <!--若当前页不是首页，修改当前页pageNum的value值为1，点击即可提交表单跳转到首页-->
+                    <a th:href="'javascript:document.forms.ec.pageNum.value=1;document.forms.ec.submit();'">首页</a>
+                </li>
+
+                <!--上一页，两种样式，根据是否为首页进行切换⚠️-->
+                <li th:if="${page.isFirstPage}" class="paginate_button previous disabled" aria-controls="DataTables_Table_0" tabindex="0">
+                    <!--若当前页是首页，则无法点击上一页跳转-->
+                    <a href="javascript:;">上一页</a>
+                </li>
+                <li th:if="${!page.isFirstPage}" class="paginate_button previous" aria-controls="DataTables_Table_0" tabindex="0">
+                    <!--若当前页不是首页，修改当前页pageNum的value值为上一页prePage属性的值，点击即可提交表单跳转到首页-->
+                    <a th:href="'javascript:document.forms.ec.pageNum.value='+${page.prePage}+';document.forms.ec.submit();'">上一页</a>
+                </li>
+
+                <!--页码，循环所有导航页号navigatepageNums，并判断是否为当前页，设置active样式-->
+                <li th:class="${i==page.pageNum?'paginate_button active':'paginate_button'}" aria-controls="DataTables_Table_0" tabindex="0" th:each="i:${page.navigatepageNums}">
+                    <!--为每个导航页码都赋值上跳转到自己页面的超链接-->
+                    <a th:href="'javascript:document.forms.ec.pageNum.value='+${i}+';document.forms.ec.submit();'" th:text="${i}"></a>
+                </li>
+
+                <!--下一页，两种样式，根据是否为尾页进行切换⚠️-->
+                <li th:if="${page.isLastPage}" class="paginate_button next disabled" aria-controls="DataTables_Table_0" tabindex="0">
+                    <!--若当前页是尾页，则无法点击下一页跳转-->
+                    <a href="javascript:;">下一页</a>
+                </li>
+                <li th:if="${!page.isLastPage}" class="paginate_button next" aria-controls="DataTables_Table_0" tabindex="0">
+                    <!--若当前页不是尾页，修改当前页pageNum的value值为下一页nextPage属性的值，点击即可提交表单跳转到首页-->
+                    <a th:href="'javascript:document.forms.ec.pageNum.value='+${page.nextPage}+';document.forms.ec.submit();'">下一页</a>
+                </li>
+
+                <!--尾页，两种样式，根据是否为尾页进行切换⚠️-->
+                <li th:if="${page.isLastPage}" class="paginate_button next disabled" aria-controls="DataTables_Table_0" tabindex="0">
+                    <!--若当前页是尾页，则无法点击尾页跳转-->
+                    <a href="javascript:;">尾页</a>
+                </li>
+                <li th:if="${!page.isLastPage}" class="paginate_button next" aria-controls="DataTables_Table_0" tabindex="0">
+                    <!--若当前页不是尾页，修改当前页pageNum的value值为总页数pages属性的值，点击即可提交表单跳转到尾页-->
+                    <a th:href="'javascript:document.forms.ec.pageNum.value='+${page.pages}+';document.forms.ec.submit();'">尾页</a>
+                </li>
+                <!--页码结束-->
+
+            </ul>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 2.4.4.4引用分页封装模版
+
+```html
+<div class="row" th:include="common/pagination :: pagination"></div>
+```
+
+
+
+#### 2.4.4.5完整封装页面展示
+
+```html
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<body class="gray-bg">
+<!--查询角色的表单-->
+<form id="ec" th:action="@{/role}" method="post">
+    <div class="wrapper wrapper-content animated fadeInRight">
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="ibox float-e-margins">
+                    <div class="ibox-content">
+
+                        <!--搜索内容开始-->
+                        <table class="table form-table margin-bottom10">
+                            <tr>
+                                <td>
+                                    <!--搜索内容回显-->
+                                    <input type="text" name="roleName"
+                                           th:value="${#maps.containsKey(filters, 'roleName')} ? ${filters.roleName} : ''"
+                                           placeholder="角色名称" class="input-sm form-control"/>
+                                </td>
+                            </tr>
+                        </table>
+                        <div>
+                            <!--点击搜索按钮提交表单，并为表单项的页码参数pageNum赋值1-->
+                            <button type="button" class="btn btn-sm btn-primary"
+                                    onclick="javascript:document.forms.ec.pageNum.value=1;document.forms.ec.submit();">
+                                搜索
+                            </button>
+                            <button type="button" class="btn btn-sm btn-primary create">新增</button>
+                            <button type="button" id="loading-example-btn"
+                                    onclick="javascript:window.location.reload();" class="btn btn-white btn-sm">刷新
+                            </button>
+                        </div>
+                        <!--搜索内容结束-->
+
+                        <table class="table table-striped table-bordered table-hover dataTables-example">
+                            <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>角色名称</th>
+                                <th>角色编码</th>
+                                <th>描述</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr class="gradeX" th:each="item,it : ${page.list}">
+                                <td class="text-center" th:text="${it.count}">11</td>
+                                <td th:text="${item.roleName}">22</td>
+                                <td th:text="${item.roleCode}">33</td>
+                                <td th:text="${item.description}">33</td>
+                                <td th:text="${#dates.format(item.createTime,'yyyy-MM-dd HH:mm:ss')}">33</td>
+                                <td class="text-center">
+                                    <a class="edit" th:attr="data-id=${item.id}">修改</a>
+                                    <a class="delete" th:attr="data-id=${item.id}">删除</a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <!--分页插件页码开始-->
+                        <div class="row" th:include="common/pagination :: pagination"></div>
+                        <!--分页插件页码结束-->
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+<!--在使用thymeleaf时，前端页面如要在javascript中获取后端传入的数据，需要使用<script th:inline="javascript">-->
+<script th:inline="javascript">
+    //弹出层事件
+    $(function () {
+        //新增
+        $(".create").on("click", function () {
+            opt.openWin("/role/create", "新增", 580, 430);
+        });
+        //修改
+        $(".edit").on("click", function () {
+            var id = $(this).attr("data-id");
+            opt.openWin('/role/edit/' + id, '修改', 580, 430);
+        });
+        //删除
+        $(".delete").on("click", function () {
+            var id = $(this).attr("data-id");
+            opt.confirm('/role/delete/' + id);
+        });
+    });
+
+</script>
+</body>
+</html>
+```
+
+
+
+
+

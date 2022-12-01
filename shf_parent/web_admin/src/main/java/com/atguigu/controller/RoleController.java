@@ -20,7 +20,7 @@ import java.util.TreeMap;
  */
 @Controller
 @RequestMapping("/role")
-public class RoleController {
+public class RoleController extends BaseController {
 
     private final static String PAGE_INDEX = "role/index";
     private final static String PAGE_CREATE = "role/create";
@@ -47,36 +47,6 @@ public class RoleController {
         map.put("filters", filters);
 
         return PAGE_INDEX;
-    }
-
-    /**
-     * @Description: 封装页面提交的分页参数及搜索条件
-     */
-    private Map<String, Object> getFilters(HttpServletRequest request) {
-        Enumeration<String> paramNames = request.getParameterNames();
-        Map<String, Object> filters = new TreeMap();
-        while(paramNames != null && paramNames.hasMoreElements()) {
-            String paramName = (String)paramNames.nextElement();
-            String[] values = request.getParameterValues(paramName);
-            if (values != null && values.length != 0) {
-                if (values.length > 1) {
-                    filters.put(paramName, values);
-                } else {
-                    //若只有一个value，只向Map集合中放value本身
-                    filters.put(paramName, values[0]);
-                }
-            }
-        }
-
-        //设置默认页数和分页显示数据的数量
-        if(!filters.containsKey("pageNum")) {
-            filters.put("pageNum", 1);
-        }
-        if(!filters.containsKey("pageSize")) {
-            filters.put("pageSize", 3);
-        }
-
-        return filters;
     }
 
     /**
