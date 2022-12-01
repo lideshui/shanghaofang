@@ -36,6 +36,9 @@ public class HouseController extends BaseController {
     @DubboReference
     private HouseBrokerService houseBrokerService;
 
+    @DubboReference
+    private HouseUserService houseUserService;
+
     private final static String LIST_ACTION = "redirect:/house";
     private final static String PAGE_INDEX = "house/index";
     private final static String PAGE_SHOW = "house/show";
@@ -188,6 +191,11 @@ public class HouseController extends BaseController {
         //详情数据5：房源的经纪人信息，表：hse_house_broker是中间表，存的房源和用户多对多关系
         List<HouseBroker> houseBrokerList = houseBrokerService.findBrokerByHouseId(id);
         map.put("houseBrokerList",houseBrokerList);
+
+        //详情数据6：房源的房东信息，表：hse_house_user
+        //一个房源可能会有多个房东，一对多的关系
+        List<HouseUser> houseUserList = houseUserService.findUserByHouseId(id);
+        map.put("houseUserList",houseUserList);
 
         return PAGE_SHOW;
     }

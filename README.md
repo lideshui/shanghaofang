@@ -9423,3 +9423,456 @@ houseBroker/create.html
 </script>
 ```
 
+
+
+## 5.6房源详情之房东
+
+一个房源可以有多位房东联系人，一个房东也可以有多个房源，虽然是多对多，但因为不需要房东的数据具有唯一性，所以可以不使用中间表
+
+### 5.6.1dubobo服务端接口
+
+HouseUserService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.HouseUser;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.HouseUserService
+ */
+public interface HouseUserService extends BaseService<HouseUser> {
+
+    /**
+     * 通过房源id查找房东信息列表
+     */
+    List<HouseUser> findUserByHouseId(Long houseId);
+
+}
+```
+
+
+
+### 5.6.2dubobo服务端提供者
+
+#### 5.6.2.1dao层
+
+HouseUserDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.HouseUser;
+import com.atguigu.service.BaseService;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.HouseUserDao
+ */
+public interface HouseUserDao extends BaseDao<HouseUser> {
+
+    /**
+     * 通过房源id查找房东信息列表
+     */
+    List<HouseUser> findUserByHouseId(Long houseId);
+
+}
+```
+
+HouseUserMapper
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.HouseUserDao">
+
+    <!-- 通过房源id查找房东信息列表 -->
+    <select id="findUserByHouseId" resultType="houseUser">
+        select * from hse_house_user where house_id=#{houseId} and is_deleted=0
+    </select>
+
+    <!--插入实例-->
+    <insert id="insert">
+        INSERT INTO hse_house_user(house_id,NAME,phone,sex,id_no)
+        VALUES(#{houseId},#{name},#{phone},#{sex},#{idNo})
+    </insert>
+
+    <!--根据id获取实例，更新页面的数据回显-->
+    <select id="getById" resultType="houseUser">
+        select * from hse_house_user where id=#{id} and is_deleted=0
+    </select>
+
+    <!--更新实例-->
+    <update id="update">
+        update hse_house_user
+        <set>
+            <if test="name!=null and name!=''">
+                name=#{name},
+            </if>
+            <if test="phone!=null and phone!=''">
+                phone=#{phone},
+            </if>
+            <if test="sex!=null and sex!=''">
+                sex=#{sex},
+            </if>
+            <if test="idNo!=null and idNo!=''">
+                id_No=#{idNo},
+            </if>
+        </set>
+        where id=#{id}
+    </update>
+
+    <!--删除实例，实际上还是修改is_deleted值-->
+    <update id="delete">
+        update hse_house_user set is_deleted=1 where id=#{id}
+    </update>
+
+</mapper>
+```
+
+
+
+#### 5.6.2.2service层
+
+HouseUserServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.dao.HouseUserDao;
+import com.atguigu.entity.HouseUser;
+import com.atguigu.service.HouseUserService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.HouseUserServiceImpl
+ */
+@DubboService
+public class HouseUserServiceImpl extends BaseServiceImpl<HouseUser> implements HouseUserService {
+
+    @Autowired
+    private HouseUserDao houseUserDao;
+
+    @Override
+    public BaseDao<HouseUser> getEntityDao() {
+        return houseUserDao;
+    }
+
+    /**
+     * 通过房源id查找房东信息列表
+     */
+    @Override
+    public List<HouseUser> findUserByHouseId(Long houseId) {
+        return houseUserDao.findUserByHouseId(houseId);
+    }
+}
+```
+
+
+
+### 5.6.3dubobo服务端消费者
+
+HouseControllert添加内容
+
+```java
+    @DubboReference
+    private HouseUserService houseUserService;
+
+
+    /**
+     * 页面详情
+     */
+    @RequestMapping("/show/{id}")
+    public String show(Map map,@PathVariable Long id) {
+        //详情数据1：房源详细信息
+        //ServiceImpl实现类中重写getById，有些属性只有id不满足要求，需要从字典中获取name⚠️
+        House house = houseService.getById(id);
+        map.put("house",house);
+
+        //详情数据2：房源小区信息
+        //ServiceImpl实现类中重写getById，有些属性只有id不满足要求，需要从字典中获取name⚠️
+        Community community = communityService.getById(house.getCommunityId());
+        map.put("community",community);
+
+        //详情数据3：房源的房源图片，表：hse_house_image
+        //房源和房产图片都在hse_house_image一张表上，通过type区分，1房源2房产
+        //房源图片通过house_id+type1查询
+        List<HouseImage> houseImage1List = houseImageService.findImageByHouseIdAndType(id,1);
+        map.put("houseImage1List",houseImage1List);
+
+
+        //详情数据4：房源的房产图片，表：hse_house_image
+        //房产图片通过house_id+type2查询
+        List<HouseImage> houseImage2List = houseImageService.findImageByHouseIdAndType(id,2);
+        map.put("houseImage2List",houseImage2List);
+
+        //详情数据5：房源的经纪人信息，表：hse_house_broker是中间表，存的房源和用户多对多关系
+        List<HouseBroker> houseBrokerList = houseBrokerService.findBrokerByHouseId(id);
+        map.put("houseBrokerList",houseBrokerList);
+
+        //详情数据6：房源的房东信息，表：hse_house_user
+        //一个房源可能会有多个房东，一对多的关系
+        List<HouseUser> houseUserList = houseUserService.findUserByHouseId(id);
+        map.put("houseUserList",houseUserList);
+
+        return PAGE_SHOW;
+    }
+```
+
+HouseUserController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.HouseUser;
+import com.atguigu.service.HouseUserService;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.HouseUserController
+ */
+@Controller
+@RequestMapping("/houseUser")
+public class HouseUserController {
+
+    @DubboReference
+    private HouseUserService houseUserService;
+
+    private final static String LIST_ACTION = "redirect:/house/show/";
+
+    private final static String PAGE_CREATE = "houseUser/create";
+    private final static String PAGE_EDIT = "houseUser/edit";
+    private final static String PAGE_SUCCESS = "common/success";
+
+
+
+
+    /**
+     * 处理/create/id请求，进入新增页面，并传入当前房源的id
+     */
+    @RequestMapping("/create/{houseId}")
+    public String create(Map map, @PathVariable Long houseId) {
+        map.put("houseId",houseId);
+        return PAGE_CREATE;
+    }
+
+
+    /**
+     * 处理/save，保存新增
+     */
+    @RequestMapping("/save")
+    public String save(HouseUser houseUser) {
+        houseUserService.insert(houseUser);
+        return PAGE_SUCCESS;
+    }
+
+
+    /**
+     * 处理/edit/id请求，进入编辑页面
+     */
+    @RequestMapping("/edit/{houseUserId}")
+    public String edit(@PathVariable Long houseUserId,Map map){
+        //查询到当前的
+        HouseUser houseUser = houseUserService.getById(houseUserId);
+        map.put("houseUser",houseUser);
+        return PAGE_EDIT;
+    }
+
+
+    /**
+     * 处理/update请求，更新实例
+     */
+    @RequestMapping("/update")
+    public String update(HouseUser houseUser){
+        houseUserService.update(houseUser);
+        return PAGE_SUCCESS;
+    }
+
+
+    /**
+     * 处理/delete/id请求，删除实例，重定向到当前房源的详情页面
+     */
+    @RequestMapping("/delete/{houseId}/{houseUserId}")
+    public String method(@PathVariable Long houseId,@PathVariable Long houseUserId){
+        houseUserService.delete(houseUserId);
+        return LIST_ACTION + houseId;
+    }
+}
+```
+
+
+
+### 5.6.4准备web资源
+
+#### 5.6.4.1创建create页面
+
+houseUser/create.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/houseUser/save}" method="post" class="form-horizontal">
+                <input type="hidden" name="houseId" th:value="${houseId}"/>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">房东姓名：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="name" id="name" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">手机：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="phone" id="phone" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">性别</label>
+                    <div class="col-sm-10">
+                        <div class="radio">
+                            <label><input type="radio" checked="checked" value="1" name="sex">男</label>
+                        </div>
+                        <div class="radio">
+                            <label> <input type="radio" value="2" name="sex">女</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">身份证号：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="idNo" id="idNo" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 5.6.4.2创建edit页面
+
+houseUser/edit.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/houseUser/update}" method="post" class="form-horizontal">
+                <input type="hidden" name="id" th:value="${houseUser.id}">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">房东姓名：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="name" id="name" th:value="${houseUser.name}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">手机：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="phone" id="phone" th:value="${houseUser.phone}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">性别</label>
+                    <div class="col-sm-10">
+                        <div class="col-sm-10">
+                            <div class="radio">
+                                <label><input type="radio" th:checked="${houseUser.sex} eq 1" value="1" name="sex">男</label>
+                            </div>
+                            <div class="radio">
+                                <label> <input type="radio" th:checked="${houseUser.sex} eq 2" value="2" name="sex">女</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">身份证号：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="idNo" id="idNo" th:value="${houseUser.idNo}" class="form-control" />
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group posf">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 5.6.4.3添加新建修改js
+
+在房源详情页house/show.html中添加
+
+```html
+<script>
+    $(".createUser").on("click",function () {
+        opt.openWin('/houseUser/create/[[${house.id}]]','新增房东',630,430)
+    });
+    $(".editUser").on("click",function () {
+        var id = $(this).attr("data-id");
+        opt.openWin('/houseUser/edit/' + id,'修改房东',630,430);
+    });
+    $(".deleteUser").on("click",function(){
+        var id = $(this).attr("data-id");
+        opt.confirm('/houseUser/delete/[[${house.id}]]/'+id);
+    });
+</script>
+```
+
+
+
+
+
+# 
