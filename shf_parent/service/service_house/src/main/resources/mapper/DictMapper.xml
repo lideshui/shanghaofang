@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.DictDao">
+
+    <!-- 用于select查询公用抽取的列 -->
+    <sql id="columns">
+        select id,parent_id,name,dict_code,create_time,update_time,is_deleted from  hse_dict
+    </sql>
+
+    <!--通过parent_id获取所有子节点-->
+    <select id="findListByParentId" resultType="dict">
+        <include refid="columns" />
+        where parent_id = #{parentId}
+    </select>
+
+    <!--判断该节点是否是父节点-->
+    <select id="isParentNode" resultType="integer">
+        select count(*) from hse_dict
+        where parent_id = #{parentId}
+    </select>
+
+</mapper>

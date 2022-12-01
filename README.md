@@ -6372,3 +6372,380 @@ web.xml中取消加载spring目录下的xml文件，否则会加载重复
 
 
 
+# 5 二手房管理
+
+## 5.1数据字典
+
+### 5.1.1搭建service-house模块
+
+在service创建service-house模块，以service为父工程，搭建方式与service-acl一致，内容相同，但是需要修改pom.xml文件中服务器的端口号防止冲突，再修改spring-register.xml文件中服务提供者的名称和端口。最后不要忘记配置web.xml⚠️
+
+#### 5.1.1.1pom.xml
+
+打包方式设置为war包后，在模块结构上按指定路径添加web.xml文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>service</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>service_house</artifactId>
+    <packaging>war</packaging>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-maven-plugin</artifactId>
+                <version>9.4.15.v20190215</version>
+                <configuration>
+                    <!-- 如果检测到项目有更改则自动热部署，每隔n秒扫描一次。默认为0，即不扫描-->
+                    <scanIntervalSeconds>10</scanIntervalSeconds>
+                    <webAppConfig>
+                        <!--指定web项目的根路径，默认为/ -->
+                        <contextPath>/</contextPath>
+                    </webAppConfig>
+                    <httpConnector>
+                        <!--端口号，默认 8080-->
+                        <port>7002</port>
+                    </httpConnector>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+
+</project>
+```
+
+
+
+#### 5.1.1.2spring-register.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+    <!-- 定义服务提供者名称名称 -->
+    <dubbo:application name="service_hrs"/>
+
+    <!--指定暴露服务的端口，如果不指定默认为20880 -->
+    <dubbo:protocol name="dubbo" port="20882"/>
+
+    <!--指定服务注册中心地址-->
+    <dubbo:registry address="zookeeper://localhost:2181"/>
+
+    <!--批量扫描，发布服务-->
+    <dubbo:annotation package="com.atguigu"/>
+</beans>
+```
+
+
+
+### 5.1.2准备web资源
+
+前端页面是基于zTree组件做的树形图，每次展开一个节点，即发起一次查询该节点的子节点异步请求，以此来展示字典信息。
+
+#### 5.1.2.1引入zTree组件
+
+将资源文件中的zTree_v3文件夹复制到web_admin模块static/js/plugins目录下，该插件依赖Jquery，但head文件已引用
+
+文档地址:http://www.treejs.cn/v3/demo.php#_108
+
+该插件支持的渲染数据格式为：
+
+- [{ id:1, isParent:true, name:"文件名称"},{ id:2, isParent:true, name:"文件名称"}.......]
+  - id：为点击该节点发起查询其子节点的参数，即parent_id
+  - isParent：判断是否为父节点，若是true展示图标为文件夹，若false则图标为文件
+  - name：页面中渲染展示的节点名称
+
+​		
+
+#### 5.1.2.2创建index页面
+
+在web_admin模块新增页面：pages/dict/index.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+
+<link rel="stylesheet" th:href="@{/static/js/plugins/zTree_v3/zTreeStyle.css}" type="text/css">
+<script type="text/javascript" th:src="@{/static/js/plugins/zTree_v3/jquery.ztree.core.js}"></script>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+
+            <div class="zTreeDemoBackground left">
+                <ul id="treeDemo" class="ztree"></ul>
+            </div>
+        </div>
+    </div>
+</div>
+<script th:inline="javascript">
+    $(function(){
+        // 文档地址:http://www.treejs.cn/v3/demo.php#_108
+        var setting = {
+            async: {
+                enable: true,
+                url:"/dict/findZnodes",
+                type:"get",
+                autoParam:["id"],
+                dataFilter: filter
+            }
+        };
+
+        function filter(treeId, parentNode, childNodes) {
+            childNodes = childNodes.data
+            if (!childNodes) return null;
+            for (var i=0, l=childNodes.length; i<l; i++) {
+                childNodes[i].name = childNodes[i].name.replace(/\.n/g, '.');
+            }
+            return childNodes;
+        }
+
+        $(document).ready(function(){
+            $.fn.zTree.init($("#treeDemo"), setting);
+        });
+    });
+</script>
+</body>
+</html>
+```
+
+
+
+#### 5.1.2.3添加导航
+
+在frame/index文件中添加导航
+
+```html
+<li>
+   <a href="#">
+      <i class="fa fa-home"></i>
+      <span class="nav-label">二手房管理</span>
+      <span class="fa arrow"></span>
+   </a>
+   <ul class="nav nav-second-level">
+      <li>
+         <a class="J_menuItem" th:href="@{/dict}" data-index="0">数据字典</a>
+      </li>
+   </ul>
+</li>
+```
+
+
+
+### 5.1.3dubbo服务端接口
+
+在service_api模块新增serviceAPI：DictService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.Dict;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.DictService
+ */
+public interface DictService {
+
+
+    /**
+     * 通过id获取所有子节点
+     */
+    List<Map<String,Object>> getNodesByParentId(Long id);
+
+}
+```
+
+
+
+### 5.1.4dubbo服务提供者
+
+#### 5.1.4.1dao层
+
+DictDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.Dict;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.DictDao
+ */
+public interface DictDao {
+    /**
+     * 通过parent_id获取所有子节点
+     */
+    List findListByParentId(Long id);
+
+    /**
+     * 通过parent_id判断是否为父节点
+     */
+    Integer isParentNode(Long id);
+}
+```
+
+DictMapper
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.DictDao">
+
+    <!-- 用于select查询公用抽取的列 -->
+    <sql id="columns">
+        select id,parent_id,name,dict_code,create_time,update_time,is_deleted from  hse_dict
+    </sql>
+
+    <!--通过parent_id获取所有子节点-->
+    <select id="findListByParentId" resultType="dict">
+        <include refid="columns" />
+        where parent_id = #{parentId}
+    </select>
+
+</mapper>
+```
+
+
+
+#### 5.1.4.3service层
+
+DictServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.DictDao;
+import com.atguigu.entity.Dict;
+import com.atguigu.service.DictService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.DictServiceImpl
+ */
+
+@DubboService
+public class DictServiceImpl implements DictService {
+
+    @Autowired
+    private DictDao dictDao;
+
+    /**
+     * 通过id获取所有子节点
+     */
+    @Override
+    public List<Map<String, Object>> getNodesByParentId(Long id) {
+
+        //获取所有子节点
+        List<Dict> list = dictDao.findListByParentId(id);
+
+        //创建处理后的list集合
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        //遍历子节点，转换为合适的样式[{ id:'',name:'',isParent:true}...]
+        for (Dict dict : list) {
+            HashMap<String, Object> map = new HashMap<>();
+            map.put("id",dict.getId());
+            map.put("name",dict.getName());
+
+            //调用dao层查询本次循环的节点是否为父节点
+            map.put("isParent",dictDao.isParentNode(dict.getId()) > 0 ? true : false);
+
+            //存储每次转换的结果
+            result.add(map);
+        }
+
+        return result;
+    }
+
+}
+```
+
+
+
+### 5.1.5dubbo服务消费者
+
+在web_admin模块新增Controller：DictController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.Dict;
+import com.atguigu.result.Result;
+import com.atguigu.service.DictService;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.DictController
+ */
+@Controller
+@RequestMapping("/dict")
+public class DictController {
+    private final static String PAGE_INDEX = "dict/index";
+
+    @DubboReference
+    private DictService dictService;
+
+    /**
+     * 访问/dict路径时返回dict/index页面
+     */
+    @RequestMapping
+    public String index() {
+        return PAGE_INDEX;
+    }
+
+    /**
+     * 通过异步获取子节点渲染到页面上
+     * 返回的结果是封装后的异步请求统一返回值模版Result
+     * 第一次进入页面时，id值为空，通过defaultValue给参数默认值，这一步很关键！⚠️
+     */
+    @RequestMapping("/findZnodes")
+    @ResponseBody
+    public Result findByParentId(@RequestParam(value = "id", defaultValue = "0") Long id) {
+        List<Map<String, Object>> result = dictService.getNodesByParentId(id);
+        return Result.ok(result);
+    }
+}
+```
+
+
+
