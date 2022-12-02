@@ -26,10 +26,10 @@
                             </tr>
                             <tr>
                                 <td>
-                                    <input type="datetime-local" name="createTimeBegin" th:value="${#maps.containsKey(filters, 'createTimeBegin')} ? ${filters.createTimeBegin} : ''" placeholder="开始日期：YYYY-MM-DD" class="input-sm form-control"/>
+                                    <input type="text" name="createTimeBegin" th:value="${#maps.containsKey(filters, 'createTimeBegin')} ? ${filters.createTimeBegin} : ''" placeholder="开始日期：YYYY-MM-DD" class="input-sm form-control" onclick="laydate({istime: true, format: 'YYYY-MM-DD'})"/>
                                 </td>
                                 <td>
-                                    <input type="datetime-local" name="createTimeEnd" th:value="${#maps.containsKey(filters, 'createTimeEnd')} ? ${filters.createTimeEnd} : ''" placeholder="截止日期：YYYY-MM-DD" class="input-sm form-control"/>
+                                    <input type="text" name="createTimeEnd" th:value="${#maps.containsKey(filters, 'createTimeEnd')} ? ${filters.createTimeEnd} : ''" placeholder="截止日期：YYYY-MM-DD" class="input-sm form-control" onclick="laydate({istime: true, format: 'YYYY-MM-DD'})"/>
                                 </td>
                                 <td>
                                 </td>

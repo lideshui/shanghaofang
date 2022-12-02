@@ -117,8 +117,8 @@ public class AdminController extends BaseController {
      */
     @RequestMapping("/upload")
     public String upload(Long adminId, @RequestParam("file") MultipartFile file) throws IOException {
-        //1. 将图片上传到七牛云
-        String fileName= UUID.randomUUID().toString();
+        //1. 将图片上传到七牛云，名称必须确保唯一！⚠️
+        String fileName= UUID.randomUUID().toString()+System.currentTimeMillis();
         QiniuUtil.upload2Qiniu(file.getBytes(),fileName);
         //2. 对当前用户做修改操作，将head_url进行修改
         Admin admin=new Admin();

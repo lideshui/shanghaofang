@@ -54,8 +54,8 @@ public class HouseImageController {
         //第一步：先将图片循环上传到七牛云服务器
         for (MultipartFile file : files) {
 
-            //循环的file就是需要上传的文件，使用UUID随机为其生成个名字
-            String fileName = UUID.randomUUID().toString();
+            //循环的file就是需要上传的文件，使用UUID+时间戳随机为其生成个名字，名字必须唯一！⚠️
+            String fileName = UUID.randomUUID().toString()+System.currentTimeMillis();;
 
             //将file转换为byte数组，使用七牛云传递byte[]的方式上传图片
             QiniuUtil.upload2Qiniu(file.getBytes(), fileName);
