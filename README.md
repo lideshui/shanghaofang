@@ -10499,3 +10499,823 @@ AdminController添加内容
 
 
 
+
+
+# 7 前端房源展示
+
+和后台管理系统使用Thymeleaf视图解析器渲染不同，前端页面的渲染方式使用Vue+Axios。
+
+## 7.1搭建前端模块web_front
+
+以web模块为父工程，在web模块下创建web-front模块，搭建过程与web-admin一致
+
+### 7.1.1模块架构
+
+模块的目录及文件架构如下
+
+- web_front
+  - pom.xml（打包方式设置为war，修改jetty端口）
+  - src/main/
+    - java/com.atguigu.controller
+    - resources
+      - spring
+        - spring-mvc.xml（去掉图片上传解析器、去掉视图解析器Thymeleaf）⚠️
+        - spring-registry.xml（修改消费者名字）⚠️
+      - logback.xml
+    - webapp
+      - WEB-INF
+        - web.xml
+
+
+
+### 7.1.2pom.xml文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>web</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--设置打包方式为war包-->
+    <artifactId>web_front</artifactId>
+
+    <!--设置打包方式为war包-->
+    <packaging>war</packaging>
+
+
+    <!--设置服务器jetty的参数，以Maven的插件形式存在-->
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-maven-plugin</artifactId>
+                <version>9.4.15.v20190215</version>
+                <configuration>
+                    <!-- 如果检测到项目有更改则自动热部署，每隔n秒扫描一次。默认为0，即不扫描-->
+                    <scanIntervalSeconds>10</scanIntervalSeconds>
+                    <webAppConfig>
+                        <!--指定web项目的根路径，默认为/    设置上下文路径-->
+                        <contextPath>/</contextPath>
+                    </webAppConfig>
+                    <httpConnector>
+                        <!--设置端口号，默认 8080-->
+                        <port>8002</port>
+                    </httpConnector>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+
+
+### 7.1.3spring-mvc.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:mvc="http://www.springframework.org/schema/mvc"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd http://www.springframework.org/schema/mvc https://www.springframework.org/schema/mvc/spring-mvc.xsd">
+
+    <!--将spring-registry.xml引入到spring-mvc中，相当于把内容复制到该文件内-->
+    <!--其实可以将spring-registry.xml内容都写在该文件内，不过不方便维护-->
+    <import resource="spring-registry.xml"/>
+
+    <!--controller包的注解扫描-->
+    <context:component-scan base-package="com.atguigu.controller"/>
+
+    <!-- 开启mvc注解，fastjson转换器的添加-->
+    <mvc:annotation-driven>
+        <mvc:message-converters register-defaults="true">
+            <!-- 配置Fastjson支持 -->
+            <bean class="com.alibaba.fastjson.support.spring.FastJsonHttpMessageConverter">
+                <property name="supportedMediaTypes">
+                    <list>
+                        <value>text/html;charset=UTF-8</value>
+                        <value>application/json</value>
+                    </list>
+                </property>
+            </bean>
+        </mvc:message-converters>
+    </mvc:annotation-driven>
+
+    <!--静态资源访问-->
+    <mvc:default-servlet-handler/>
+
+</beans>
+```
+
+
+
+### 7.1.4spring-registry.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!--这里不需要设置扫描包，springMvc中已经设置了，不然会冲突⚠️-->
+    <!--<context:component-scan base-package="com.atguigu.controller"/>-->
+
+    <!--配置dubbo应用程序名称-->
+    <dubbo:application name="web_front"></dubbo:application>
+
+    <!--注册配置中心-->
+    <dubbo:registry address="zookeeper://localhost:2181"></dubbo:registry>
+
+    <!--启动时候不检查 设置连接超时时间-->
+    <dubbo:consumer check="false" timeout="600000"></dubbo:consumer>
+</beans>
+```
+
+
+
+### 7.1.5logback.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration debug="false">
+
+    <!--定义日志文件的存储地址 logs为当前项目的logs目录 还可以设置为../logs -->
+    <property name="LOG_HOME" value="logs" />
+
+    <!--控制台日志， 控制台输出 -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <!--格式化输出：%d表示日期，%thread表示线程名，%-5level：级别从左显示5个字符宽度,%msg：日志消息，%n是换行符-->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 日志输出级别 -->
+    <root level="DEBUG">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>
+```
+
+
+
+### 7.1.6web.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd"
+         version="4.0">
+
+    <!-- 解决post乱码 添加字符编码过滤器 -->
+    <filter>
+        <filter-name>encode</filter-name>
+        <filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+        <init-param>
+            <param-name>encoding</param-name>
+            <param-value>UTF-8</param-value>
+        </init-param>
+        <init-param>
+            <param-name>forceRequestEncoding</param-name>
+            <param-value>true</param-value>
+        </init-param>
+    </filter>
+    <filter-mapping>
+        <filter-name>encode</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <!-- 配置SpringMVC框架前端控制器 -->
+    <servlet>
+        <servlet-name>dispatcherServlet</servlet-name>
+        <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+        <init-param>
+            <param-name>contextConfigLocation</param-name>
+            <param-value>classpath:spring/spring-mvc.xml</param-value>
+        </init-param>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>dispatcherServlet</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+
+</web-app>
+```
+
+
+
+## 7.2准备前端页面
+
+### 7.2.1引入静态资源
+
+路径：项目模板/前端模板
+
+复制static文件夹与index.html到web-front模块webapp目录下（不能放在WEB-INF目录里，小心复制错了文件夹⚠️）
+
+
+
+### 7.2.2引入VUE组件
+
+路径：vue js组件
+
+复制vue.js与axios.js到webapp/static/js下
+
+待会在index页面中引入
+
+```html
+<script src="./static/js/vue.js"></script>
+<script src="./static/js/axios.js"></script>
+```
+
+
+
+### 7.2.3创建index页面
+
+直接在webapp目录下创建index.html（不能放在WEB-INF目录里，小心别创建错了位置⚠️）
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta name="Author" contect="http://www.webqin.net">
+    <title>尚好房</title>
+    <link rel="shortcut icon" href="./static/images/favicon.ico"/>
+    <link type="text/css" href="./static/css/css.css" rel="stylesheet"/>
+    <script type="text/javascript" src="./static/js/jquery.js"></script>
+    <script type="text/javascript" src="./static/js/js.js"></script>
+    <script type="text/javascript" src="./static/js/vue.js"></script>
+    <script type="text/javascript" src="./static/js/axios.js"></script>
+    <script type="text/javascript">
+        $(function () {
+            //导航定位
+            $(".nav li:eq(1)").addClass("navCur");
+        })
+    </script>
+</head>
+
+<body>
+<div id="list">
+    <div class="header">
+        <div class="width1190">
+            <div class="fl">您好，欢迎来到尚好房！</div>
+            <div class="fr">
+                <a href="login.html">登录</a> |
+                <a href="register.html">注册</a> |
+                <a href="javascript:;">加入收藏</a> |
+                <a href="javascript:;">设为首页</a>
+            </div>
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div>
+    <div class="list-nav">
+        <div class="width1190">
+            <div class="list"><h3>房源分类</h3></div><!--list/-->
+            <ul class="nav">
+                <li><a href="index.html">首页</a></li>
+                <li><a href="about.html">关于我们</a></li>
+                <li><a href="contact.html">联系我们</a></li>
+                <div class="clears"></div>
+            </ul><!--nav/-->
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div><!--list-nav/-->
+    <div class="banner" style="background:url(./static/images/ban.jpg) center center no-repeat;"></div>
+
+    <div class="content">
+        <div class="width1190">
+            <form action="#" method="get" class="pro-search">
+                <table>
+                    <tr>
+                        <th>房源区域：</th>
+                        <td>
+                            <div style="line-height: 30px;">
+                                <a href="javascript:;" @click="searchArea('')"
+                                   :class="houseQueryVo.areaId=='' ? 'pro-cur' : ''">不限</a>
+                                <a href="javascript:;" @click="searchArea(item.id)"
+                                   :class="item.id==houseQueryVo.areaId ? 'pro-cur' : ''" v-for="item in areaList"
+                                   :key="item.id">{{ item.name }}</a>
+                            </div>
+                            <!--新增区域-->
+                            <div style="font-size: 12px;border-top:#ccc 1px dotted;">
+                                <a href="javascript:;" @click="searchPlate(item.id)"
+                                   :class="item.id==houseQueryVo.plateId ? 'pro-cur' : ''" v-for="item in plateList"
+                                   :key="item.id">{{ item.name }}</a>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>户型：</th>
+                        <td>
+                            <a href="javascript:;" @click="searchHouseType('')"
+                               :class="houseQueryVo.houseTypeId=='' ? 'pro-cur' : ''">不限</a>
+                            <a href="javascript:;" @click="searchHouseType(item.id)"
+                               :class="item.id==houseQueryVo.houseTypeId ? 'pro-cur' : ''" v-for="item in houseTypeList"
+                               :key="item.id">{{ item.name }}</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>楼层：</th>
+                        <td>
+                            <a href="javascript:;" @click="searchFloor('')"
+                               :class="houseQueryVo.floorId=='' ? 'pro-cur' : ''">不限</a>
+                            <a href="javascript:;" @click="searchFloor(item.id)"
+                               :class="item.id==houseQueryVo.floorId ? 'pro-cur' : ''" v-for="item in floorList"
+                               :key="item.id">{{ item.name }}</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>建筑结构：</th>
+                        <td>
+                            <a href="javascript:;" @click="searchBuildStructure('')"
+                               :class="houseQueryVo.buildStructureId=='' ? 'pro-cur' : ''">不限</a>
+                            <a href="javascript:;" @click="searchBuildStructure(item.id)"
+                               :class="item.id==houseQueryVo.buildStructureId ? 'pro-cur' : ''"
+                               v-for="item in buildStructureList" :key="item.id">{{ item.name }}</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>朝向：</th>
+                        <td>
+                            <a href="javascript:;" @click="searchDirection('')"
+                               :class="houseQueryVo.directionId=='' ? 'pro-cur' : ''">不限</a>
+                            <a href="javascript:;" @click="searchDirection(item.id)"
+                               :class="item.id==houseQueryVo.directionId ? 'pro-cur' : ''" v-for="item in directionList"
+                               :key="item.id">{{ item.name }}</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>装修情况：</th>
+                        <td>
+                            <a href="javascript:;" @click="searchDecoration('')"
+                               :class="houseQueryVo.decorationId=='' ? 'pro-cur' : ''">不限</a>
+                            <a href="javascript:;" @click="searchDecoration(item.id)"
+                               :class="item.id==houseQueryVo.decorationId ? 'pro-cur' : ''"
+                               v-for="item in decorationList" :key="item.id">{{ item.name }}</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>房屋用途：</th>
+                        <td>
+                            <a href="javascript:;" @click="searchHouseUse('')"
+                               :class="houseQueryVo.houseUseId=='' ? 'pro-cur' : ''">不限</a>
+                            <a href="javascript:;" @click="searchHouseUse(item.id)"
+                               :class="item.id==houseQueryVo.houseUseId ? 'pro-cur' : ''" v-for="item in houseUseList"
+                               :key="item.id">{{ item.name }}</a>
+                        </td>
+                    </tr>
+                </table>
+                <div class="paixu">
+                    <strong>排序：</strong>
+                    <a href="javascript:;" @click="sortDefault()"
+                       :class="houseQueryVo.defaultSort=='1' ? 'pai-cur' : ''">默认</a>
+                    <a href="javascript:;" @click="sortPrice()" :class="houseQueryVo.priceSort=='1' ? 'pai-cur' : ''">价格
+                        &or;</a>
+                    <a href="javascript:;" @click="sortTime()" :class="houseQueryVo.timeSort=='1' ? 'pai-cur' : ''">最新
+                        &or;</a>
+                </div>
+            </form><!--pro-search/-->
+        </div><!--width1190/-->
+        <div class="width1190">
+            <div class="pro-left">
+                <dl v-for="item in page.list" :key="item.id">
+                    <dt><a :href="'info.html?id='+item.id"><img :src="item.defaultImageUrl" width="286"
+                                                                height="188"/></a></dt>
+                    <dd>
+                        <h3><a :href="'info.html?id='+item.id">{{ item.name }}</a></h3>
+                        <div class="pro-wei">
+                            <img src="/static/images/weizhi.png" width="12" height="16"/> <strong class="red">{{
+                            item.communityName }}</strong>
+                        </div>
+                        <div class="pro-fang">{{ item.buildArea }}平 {{ item.houseTypeName}} {{ item.floorName}} {{
+                            item.directionName}}
+                        </div>
+                        <div class="pra-fa"> 发布时间：{{ item.createTimeString }}</div>
+                    </dd>
+                    <div class="price">¥ <strong>{{ item.totalPrice }}</strong><span class="font12">万元</span></div>
+                    <div class="clears"></div>
+                </dl>
+
+            </div><!--pro-left/-->
+
+            <div class="clears"></div>
+            <ul class="pages">
+                <li>
+                    <a href="javascript:;" @click="fetchData(page.prePage)" v-if="page.hasPreviousPage">上一页</a>
+                </li>
+                <li v-for="item in page.navigatepageNums" :class="item==page.pageNum ? 'page_active' : ''">
+                    <a href="javascript:;" @click="fetchData(item)">{{ item }}</a>
+                </li>
+                <li>
+                    <a href="javascript:;" @click="fetchData(page.nextPage)" v-if="page.hasNextPage">下一页</a>
+                </li>
+            </ul>
+        </div><!--width1190/-->
+    </div><!--content/-->
+
+    <div class="footer">
+        <div class="width1190">
+            <div class="fl"><a href="index.html"><strong>尚好房</strong></a><a href="about.html">关于我们</a><a
+                    href="contact.html">联系我们</a><a href="follow.html">个人中心</a></div>
+            <div class="fr">
+                <dl>
+                    <dt><img src="./static/images/erweima.png" width="76" height="76"/></dt>
+                    <dd>微信扫一扫<br/>房价点评，精彩发布</dd>
+                </dl>
+                <dl>
+                    <dt><img src="./static/images/erweima.png" width="76" height="76"/></dt>
+                    <dd>微信扫一扫<br/>房价点评，精彩发布</dd>
+                </dl>
+                <div class="clears"></div>
+            </div>
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div><!--footer/-->
+    <div class="copy">Copyright@ 2020 尚好房 版权所有 沪ICP备1234567号-0&nbsp;&nbsp;&nbsp;&nbsp;技术支持：XXX</div>
+    <div class="bg100"></div>
+</div>
+<script>
+    new Vue({
+        el: '#list',
+        data: {
+            areaList: [],
+            plateList: [],
+            houseTypeList: [],
+            floorList: [],
+            buildStructureList: [],
+            directionList: [],
+            decorationList: [],
+            houseUseList: [],
+            //接口当前页的数据，存储分页信息
+            page: {
+                list: [],
+                pageNum: 1,
+                pageSize: 2, //方便测试分页
+                pages: 1,
+                //导航页码
+                navigatepageNums: [1, 2, 3, 4],
+                //上一页
+                prePage: 0,
+                //下一页
+                nextPage: 0,
+                //是否为首页
+                hasPreviousPage: false,
+                //是否为尾页
+                hasNextPage: false
+            },
+            //存储查询条件的Json对象，存储用户点击的搜索项⚠️
+            //该Json对象会传到后端dao层，dao层判断是否为空串进行拼接查询条件
+            houseQueryVo: {
+                areaId: '',
+                plateId: '',
+                houseTypeId: '',
+                floorId: '',
+                buildStructureId: '',
+                directionId: '',
+                decorationId: '',
+                houseUseId: '',
+
+                defaultSort: 1,
+                priceSort: null,
+                timeSort: null,
+
+            },
+        },
+        created() {
+            this.fetchDictData()
+            //默认刚进入页码显示全部房源，发起一次异步请求
+            this.fetchData(1)
+        },
+        methods: {
+            fetchDictData() {
+                //axios在then的内部不能使用Vue的实例化的this, 因为在内部 this 没有被绑定
+                var that = this
+                axios.get('/dict/findListByDictCode/beijing').then(function (response) {
+                    that.areaList = response.data.data
+                });
+                axios.get('/dict/findListByDictCode/houseType').then(function (response) {
+                    that.houseTypeList = response.data.data
+                });
+                axios.get('/dict/findListByDictCode/floor').then(function (response) {
+                    that.floorList = response.data.data
+                });
+                axios.get('/dict/findListByDictCode/buildStructure').then(function (response) {
+                    that.buildStructureList = response.data.data
+                });
+                axios.get('/dict/findListByDictCode/direction').then(function (response) {
+                    that.directionList = response.data.data
+                });
+                axios.get('/dict/findListByDictCode/decoration').then(function (response) {
+                    that.decorationList = response.data.data
+                });
+                axios.get('/dict/findListByDictCode/houseUse').then(function (response) {
+                    that.houseUseList = response.data.data
+                });
+            },
+
+            //房源区域的二级搜索
+            searchArea(id) {
+                this.houseQueryVo.areaId = id
+                this.houseQueryVo.plateId = ''
+                this.fetchData(1)
+
+                //如果点击的是不限，则进入到if内，不再发请求，直接return
+                if (id == '') {
+                    this.plateList = []
+                    return
+                }
+                var that = this
+                axios.get('/dict/findListByParentId/' + id).then(function (response) {
+                    that.plateList = response.data.data
+                });
+            },
+
+            //存储查询条件值，用户点击的搜索项触发的方法
+            searchPlate(id) {
+                this.houseQueryVo.plateId = id
+                this.fetchData(1)
+            },
+            searchHouseType(id) {
+                this.houseQueryVo.houseTypeId = id
+                this.fetchData(1)
+            },
+            searchFloor(id) {
+                this.houseQueryVo.floorId = id
+                this.fetchData(1)
+            },
+            searchBuildStructure(id) {
+                this.houseQueryVo.buildStructureId = id
+                this.fetchData(1)
+            },
+            searchDirection(id) {
+                this.houseQueryVo.directionId = id
+                this.fetchData(1)
+            },
+            searchDecoration(id) {
+                this.houseQueryVo.decorationId = id
+                this.fetchData(1)
+            },
+            searchHouseUse(id) {
+                this.houseQueryVo.houseUseId = id
+                this.fetchData(1)
+            },
+
+            //用户选择的排序规则：默认/单价/时间
+            sortDefault() {
+                this.houseQueryVo.defaultSort = 1
+                this.houseQueryVo.priceSort = null
+                this.houseQueryVo.timeSort = null
+                this.fetchData(1)
+            },
+            sortPrice() {
+                this.houseQueryVo.defaultSort = null
+                this.houseQueryVo.priceSort = 1
+                this.houseQueryVo.timeSort = null
+                this.fetchData(1)
+            },
+            sortTime() {
+                this.houseQueryVo.defaultSort = null
+                this.houseQueryVo.priceSort = null
+                this.houseQueryVo.timeSort = 1
+                this.fetchData(1)
+            },
+
+            //无论点击哪个搜索项，都会调用该方法向后端发起异步查询请求⚠️
+            //houseQueryVo对象是搜索条件对象以及分页信息
+            fetchData(pageNum = 1) {
+                this.page.pageNum = pageNum
+                if (pageNum < 1) pageNum = 1
+                //axios在then的内部不能使用Vue的实例化的this, 因为在内部 this 没有被绑定
+                var that = this
+                axios.post('/house/list/' + pageNum + '/' + this.page.pageSize, this.houseQueryVo).then(function (response) {
+                    //后端返回的pageInfo对象，包含着全部的渲染列表信息及分页信息，赋值给Vue的page对象，通过page渲染数据⚠️
+                    that.page = response.data.data
+                });
+            },
+        }
+    })
+</script>
+</body>
+</html>
+```
+
+
+
+### 7.2.4后端地区查询
+
+通过查询字典中的code，展示房源地区信息，并点击房源地区通过id查询子地区，实现二次查询
+
+#### 7.2.4.1后端controller层
+
+DictController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.Dict;
+import com.atguigu.result.Result;
+import com.atguigu.service.DictService;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.DictController
+ */
+@Controller
+@RequestMapping("/dict")
+@ResponseBody
+public class DictController {
+    private final static String PAGE_INDEX = "dict/index";
+
+    @DubboReference
+    private DictService dictService;
+
+
+    /**
+     * 请求路径：/dict/findListByDictCode/code，作用：根据code返回字典内相关信息
+     */
+    @RequestMapping("/findListByDictCode/{code}")
+    public Result findListByDictCode(@PathVariable String code){
+        List<Dict> dictList = dictService.findListByDictCode(code);
+        return Result.ok(dictList);
+    }
+
+
+    /**
+     * 请求路径：findListByParentId/parentId，作用：根据id二次查找下级地区板块
+     */
+    @RequestMapping("/findListByParentId/{parentId}")
+    public Result findListByParentId(@PathVariable Long parentId){
+        List<Dict> dictList = dictService.findListByParentId(parentId);
+        return Result.ok(dictList);
+    }
+
+}
+```
+
+
+
+### 7.2.5后端多条件排序查询
+
+借助VO对象封装查询参数和传递查询结果。
+
+#### 7.2.5.1后端serviceAPI
+
+HouseService新增内容
+
+```Java
+/**
+ * 查询前台首页展示信息，HouseVo中包含了字典、小区、房源的信息，返回HouseVo对象即可
+ */
+PageInfo<HouseVo> findHouseByHouseQueryVo(Integer pageNum, Integer pageSize, HouseQueryVo houseQueryVo);
+```
+
+
+
+#### 7.2.5.2后端dao层
+
+HouseDao新增内容
+
+```java
+/**
+ * 查询前台首页展示信息，HouseVo中包含了字典、小区、房源的信息，返回HouseVo对象即可
+ */
+List<HouseVo> findHouseByQueryVo(HouseQueryVo houseQueryVo);
+```
+
+HouseMapper新增内容
+
+```xml
+<!--需要两表联查(hse_house/hse_community),hse_dict表中的名字，到时候根据id去查询-->
+<select id="findHouseByQueryVo" resultType="houseVo">
+    SELECT hc.`name` communityName,hh.* FROM hse_house hh LEFT JOIN hse_community hc
+    ON hh.`community_id`=hc.`id`
+    <where>
+        <if test="areaId!=null and areaId!=''">
+            and hc.area_Id=#{areaId}
+        </if>
+        <if test="plateId!=null and plateId!=''">
+            and hc.plate_Id=#{plateId}
+        </if>
+        <if test="houseTypeId!=null and houseTypeId!=''">
+            and house_Type_Id=#{houseTypeId}
+        </if>
+        <if test="floorId!=null and floorId!=''">
+            and hh.floor_Id=#{floorId}
+        </if>
+        <if test="buildStructureId!=null and buildStructureId!=''">
+            and  hh.build_Structure_Id=#{buildStructureId}
+        </if>
+        <if test="directionId!=null and directionId!=''">
+            and  hh.direction_Id=#{directionId}
+        </if>
+        <if test="decorationId!=null and decorationId!=''">
+            and hh.decoration_Id=#{decorationId}
+        </if>
+        <if test="houseUseId!=null and houseUseId!=''">
+            and hh.house_Use_Id=#{houseUseId}
+        </if>
+        <!--必须是已发布的、小区和房源也未删除的才能被前台看到-->
+        and hh.status=1
+        and hh.is_deleted=0
+        and hc.is_deleted=0
+    </where>
+    <!--查询中的三个排序信息-->
+    <if test="defaultSort==1">
+        order by hh.id desc
+    </if>
+    <if test="priceSort==1">
+        order by hh.total_price desc
+    </if>
+    <if test="timeSort==1">
+        order by hh.create_time desc
+    </if>
+</select>
+```
+
+
+
+#### 7.2.5.3后端service层
+
+HouseServiceImpl新增内容
+
+```java
+/**
+ * 查询前台首页展示信息，HouseVo中包含了字典、小区、房源的信息，返回HouseVo对象即可
+ * 关于房源中个别属性只有id，可再去字典中根据id查到name再赋值即可
+ */
+@Override
+public PageInfo<HouseVo> findHouseByHouseQueryVo(Integer pageNum, Integer pageSize, HouseQueryVo houseQueryVo) {
+    PageHelper.startPage(pageNum,pageSize);
+    List<HouseVo> houseVoList = houseDao.findHouseByQueryVo(houseQueryVo);
+    for (HouseVo houseVo : houseVoList) {
+        //需要将数据字典中三个id值换成三个name值: 需要调用DictDao
+        houseVo.setHouseTypeName(dictDao.getNameById(houseVo.getHouseTypeId()));
+        houseVo.setDirectionName(dictDao.getNameById(houseVo.getDirectionId()));
+        houseVo.setFloorName(dictDao.getNameById(houseVo.getFloorId()));
+    }
+    return new PageInfo<>(houseVoList,3);
+}
+```
+
+
+
+#### 7.2.5.4后端controller层
+
+HouseController
+
+```java
+package com.atguigu.controller;
+
+import org.apache.dubbo.config.annotation.DubboReference;
+import com.atguigu.result.Result;
+import com.atguigu.service.HouseService;
+import com.atguigu.vo.HouseQueryVo;
+import com.atguigu.vo.HouseVo;
+import com.github.pagehelper.PageInfo;
+import org.springframework.web.bind.annotation.*;
+
+
+@RestController
+@RequestMapping(value="/house")
+public class HouseController {
+
+    @DubboReference
+    private HouseService houseService;
+
+    /**
+     * 房源列表
+     */
+    @PostMapping(value = "/list/{pageNum}/{pageSize}")
+    public Result findListPage(@RequestBody HouseQueryVo houseQueryVo,
+                               @PathVariable Integer pageNum,
+                               @PathVariable Integer pageSize) {
+        //调用业务层处理业务，这里的page对象会响应到前台，直接赋给前台的page对象
+        //前端根据page中的数据进行列表渲染⚠️
+        PageInfo<HouseVo> page = houseService.findHouseByHouseQueryVo(pageNum, pageSize, houseQueryVo);
+        return Result.ok(page);
+    }
+
+}
+```
+
+
+
+
+
