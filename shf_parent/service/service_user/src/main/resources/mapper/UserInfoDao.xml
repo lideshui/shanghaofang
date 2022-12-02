@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.UserInfoDao">
+
+    <!--通过手机号码获取用户的详细信息，注册操作中判断手机号是否重复-->
+    <select id="findUserInfoByPhone" resultType="userInfo">
+        select * from user_info where phone=#{phone} and is_deleted=0
+    </select>
+
+    <!--新增一个实例-->
+    <insert id="insert">
+        insert into user_info(phone,nick_name,status,password)
+        values(#{phone},#{nickName},#{status},#{password})
+    </insert>
+
+</mapper>
