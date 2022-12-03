@@ -13172,4 +13172,244 @@ public Result logout(HttpSession session){
 
 
 
-## 
+## 8.3关注房源
+
+### 8.3.1实现关注房源功能
+
+#### 8.3.1.1修改info页面
+
+添加Vue对象的methods属性中的方法
+
+```javascript
+//关注当前房源
+follow() {
+  var that = this
+  //之所以多加一级/auth，是为了添加拦截器做准备
+  axios.get('/userFollow/auth/follow/'+this.id).then(function (response) {
+    //如果没登录，拦截器会返回208状态，跳转登录页面
+    if (response.data.code == 208) {
+      window.location.href = 'login.html?originUrl='+window.location.href
+    } else {
+      that.isFollow = true
+    }
+  });
+}
+```
+
+#### 8.3.1.2后端ServiceAPI
+
+UserFollowService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.UserFollow;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.UserFollowService
+ */
+public interface UserFollowService extends BaseService<UserFollow> {
+
+    /**
+     * 实现用户关注房源
+     */
+    void follow(Long userId,Long houseId);
+
+    /**
+     * 获取用户是否关注该房源的信息
+     */
+    UserFollow findFollowByUserAndHouse(Long userId, Long houseId);
+}
+```
+
+
+
+#### 8.3.1.3后端dao层
+
+UserFollowDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.UserFollow;
+import org.apache.ibatis.annotations.Param;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.UserFollowDao
+ */
+public interface UserFollowDao extends BaseDao<UserFollow> {
+
+    /**
+     * 获取用户是否关注该房源的信息
+     */
+    UserFollow findFollowByUserAndHouse(@Param("userId") Long userId, @Param("houseId") Long houseId);
+}
+```
+
+UserFollowMapper
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.UserFollowDao">
+
+    <!--向中间表插入信息，实现关注功能-->
+    <insert id="insert">
+        insert into user_follow(user_id,house_id)
+        values(#{userId},#{houseId})
+    </insert>
+
+    <!--查询当前用户是否关注该房源信息-->
+    <select id="findFollowByUserAndHouse" resultType="userFollow">
+        select * from user_follow where user_id=#{userId} and house_id=#{houseId} and is_deleted=0
+    </select>
+
+</mapper>
+```
+
+
+
+#### 8.3.1.4后端service层
+
+UserFollowServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.dao.UserFollowDao;
+import com.atguigu.entity.UserFollow;
+import com.atguigu.service.UserFollowService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+
+
+@DubboService
+public class UserFollowServiceImpl extends BaseServiceImpl<UserFollow> implements UserFollowService {
+
+    @Autowired
+    private UserFollowDao userFollowDao;
+
+    
+    @Override
+    public BaseDao<UserFollow> getEntityDao() {
+        return userFollowDao;
+    }
+    
+
+    /**
+     * 实现用户关注该房源
+     */
+    @Override
+    public void follow(Long userId, Long houseId) {
+        UserFollow userFollow=new UserFollow();
+        userFollow.setHouseId(houseId);
+        userFollow.setUserId(userId);
+        userFollowDao.insert(userFollow);
+    }
+
+    /**
+     * 查找当前用户是否关注了该房源的信息
+     */
+    @Override
+    public UserFollow findFollowByUserAndHouse(Long userId, Long houseId) {
+        return userFollowDao.findFollowByUserAndHouse(userId,houseId);
+    }
+
+}
+```
+
+
+
+#### 8.3.1.5后端controller层
+
+HouseController修改内容
+
+```java
+@DubboReference
+private UserFollowService userFollowService;
+
+/**
+ * 房源详情页面的详细信息
+ */
+@RequestMapping("/info/{houseId}")
+public Result info(@PathVariable Long houseId, HttpSession session){
+    //当前房源的信息(内部关于数据字典的信息已完成转化)
+    House house = houseService.getById(houseId);
+    //当前房源小区的信息(内部关于数据字典的信息已完成转化)
+    Community community = communityService.getById(house.getCommunityId());
+
+    List<HouseBroker> houseBrokerList = houseBrokerService.findBrokerByHouseId(houseId);
+
+    List<HouseImage> houseImage1List = houseImageService.findImageByHouseIdAndType(houseId, 1);
+
+    //从会话域中取出当前登录的用户信息
+    UserInfo userInfo = (UserInfo)session.getAttribute("userInfo");
+    //是否关注了该房源，默认赋值为未关注，即不登录用户显示未关注
+    Boolean isFollow=false;
+    //若会话域中有登录的用户信息，就发起二次查询，获取真实的关注信息
+    if(userInfo!=null){
+        UserFollow userFollow = userFollowService.findFollowByUserAndHouse(userInfo.getId(), houseId);
+        if(userFollow!=null){
+            //若关注信息的中间表对象不为空，则说明该用户关注了该房源
+            isFollow=true;
+        }
+    }
+
+    Map<String,Object> map=new HashMap<>();
+    map.put("house",house);
+    map.put("community",community);
+    map.put("houseBrokerList",houseBrokerList);
+    map.put("houseImage1List",houseImage1List);
+    map.put("isFollow",isFollow);
+
+    return Result.ok(map);
+}
+```
+
+UserFollowController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.UserInfo;
+import com.atguigu.result.Result;
+import com.atguigu.service.UserFollowService;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import javax.servlet.http.HttpSession;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.UserFollowController
+ */
+@Controller
+@RequestMapping("/userFollow")
+@ResponseBody
+public class UserFollowController {
+
+    @DubboReference
+    private UserFollowService userFollowService;
+
+    /**
+     * 处理/auth/follow/id路径，用户关注当前房源的请求
+     */
+    @RequestMapping("/auth/follow/{houseId}")
+    public Result follow(@PathVariable Long houseId, HttpSession session){
+        //目前先保持手动登录，确保请求域中有用户信息，一会再去实现拦截器
+        UserInfo userInfo = (UserInfo) session.getAttribute("userInfo");
+        userFollowService.follow(userInfo.getId(),houseId);
+        return Result.ok();
+    }
+}
+```
+

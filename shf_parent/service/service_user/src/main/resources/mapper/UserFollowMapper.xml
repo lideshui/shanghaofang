@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.UserFollowDao">
+
+    <!--向中间表插入信息，实现关注功能-->
+    <insert id="insert">
+        insert into user_follow(user_id,house_id)
+        values(#{userId},#{houseId})
+    </insert>
+
+    <!--查询当前用户是否关注该房源信息-->
+    <select id="findFollowByUserAndHouse" resultType="userFollow">
+        select * from user_follow where user_id=#{userId} and house_id=#{houseId} and is_deleted=0
+    </select>
+
+</mapper>

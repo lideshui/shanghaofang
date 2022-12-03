@@ -62,7 +62,7 @@
             <div class="clears"></div>
         </div><!--width1190/-->
     </div><!--list-nav/-->
-    <div class="banner" style="background:url(/images/ban.jpg) center center no-repeat;"></div>
+    <div class="banner" style="background:url(/static/images/ban.jpg) center center no-repeat;"></div>
 
     <div class="content">
         <div class="width1190" style="width:1000px;">
@@ -221,7 +221,7 @@
         <!--每一个选项卡-->
         <div class="proList">
             <div class="proList-fm">
-                <img src="/images/standard_f1ba9c2f-a917-421d-ad0f-2a6048a0d0d7.jfif" alt="">
+                <img src="/static/images/standard_f1ba9c2f-a917-421d-ad0f-2a6048a0d0d7.jfif" alt="">
             </div>
             <div class="proList-fd">
                 <table>
@@ -287,7 +287,7 @@
         <div class="proList">
             <dl class="proList-jingjiL clearf">
                 <dt>
-                    <img src="/images/d61bd0db-9b94-4199-85e1-8360606f9c99.jpg.480x640.jpg.55x55.jpg" alt="">
+                    <img src="/static/images/d61bd0db-9b94-4199-85e1-8360606f9c99.jpg.480x640.jpg.55x55.jpg" alt="">
                 </dt>
                 <dd>
                     <div>
@@ -304,7 +304,7 @@
             </dl>
             <dl class="proList-jingjiL clearf">
                 <dt>
-                    <img src="/images/adb503d4-3b05-4574-a61a-e5efbd39ec47.png.480x640.jpg.55x55.jpg" alt="">
+                    <img src="/static/images/adb503d4-3b05-4574-a61a-e5efbd39ec47.png.480x640.jpg.55x55.jpg" alt="">
                 </dt>
                 <dd>
                     <div>
@@ -321,7 +321,7 @@
             </dl>
             <dl class="proList-jingjiL clearf">
                 <dt>
-                    <img src="/images/832c9fdc-e770-416d-8ae4-cc17e294049e.jpg.480x640.jpg.55x55.jpg" alt="">
+                    <img src="/static/images/832c9fdc-e770-416d-8ae4-cc17e294049e.jpg.480x640.jpg.55x55.jpg" alt="">
                 </dt>
                 <dd>
                     <div>
@@ -345,11 +345,11 @@
                     href="contact.html">联系我们</a><a href="follow.html">个人中心</a></div>
             <div class="fr">
                 <dl>
-                    <dt><img src="/images/erweima.png" width="76" height="76"/></dt>
+                    <dt><img src="/static/images/erweima.png" width="76" height="76"/></dt>
                     <dd>微信扫一扫<br/>房价点评，精彩发布</dd>
                 </dl>
                 <dl>
-                    <dt><img src="/images/erweima.png" width="76" height="76"/></dt>
+                    <dt><img src="/static/images/erweima.png" width="76" height="76"/></dt>
                     <dd>微信扫一扫<br/>房价点评，精彩发布</dd>
                 </dl>
                 <div class="clears"></div>
@@ -451,6 +451,19 @@
                         that.houseImage1List = response.data.data.houseImage1List
                     that.isFollow = response.data.data.isFollow
                     that.isLoad = true
+                });
+            },
+            //关注当前房源
+            follow() {
+                var that = this
+                //之所以多加一级/auth，是为了添加拦截器做准备
+                axios.get('/userFollow/auth/follow/'+this.id).then(function (response) {
+                    //如果没登录，拦截器会返回208状态，跳转登录页面
+                    if (response.data.code == 208) {
+                        window.location.href = 'login.html?originUrl='+window.location.href
+                    } else {
+                        that.isFollow = true
+                    }
                 });
             }
         }
