@@ -30,4 +30,12 @@
     <!--静态资源访问-->
     <mvc:default-servlet-handler/>
 
+    <!--配置拦截器的拦截路径，只要URI包含auth就拦截-->
+    <mvc:interceptors>
+        <mvc:interceptor>
+            <mvc:mapping path="/**/auth/**"/>
+            <bean class="com.atguigu.interceptor.LoginInterceptor"/>
+        </mvc:interceptor>
+    </mvc:interceptors>
+
 </beans>
