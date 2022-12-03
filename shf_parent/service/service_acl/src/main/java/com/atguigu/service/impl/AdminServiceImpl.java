@@ -6,7 +6,7 @@ import com.atguigu.entity.Admin;
 import com.atguigu.service.AdminService;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+
 
 
 /**

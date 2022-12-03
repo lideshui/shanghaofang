@@ -71,7 +71,6 @@
         where id=#{id}
     </update>
 
-
     <!--逻辑删除-->
     <update id="delete">
         update acl_role set
@@ -79,4 +78,11 @@
         where
         id = #{id}
     </update>
+
+    <!--获取所有角色-->
+    <select id="findAll" resultType="role">
+        <include refid="columns"></include>
+        where is_deleted=0
+    </select>
+
 </mapper>

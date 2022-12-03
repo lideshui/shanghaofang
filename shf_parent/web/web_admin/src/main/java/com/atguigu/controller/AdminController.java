@@ -1,25 +1,29 @@
 package com.atguigu.controller;
 
 import com.atguigu.entity.Admin;
+import com.atguigu.entity.Role;
+import com.atguigu.service.AdminRoleService;
 import com.atguigu.service.AdminService;
+import com.atguigu.service.RoleService;
 import com.atguigu.util.QiniuUtil;
 import com.github.pagehelper.PageInfo;
 import org.apache.dubbo.config.annotation.DubboReference;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
-
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 
 /**
  * TODD
+ *
  * @AllClassName: com.atguigu.controller.AdminController
  */
 @Controller
@@ -36,13 +40,20 @@ public class AdminController extends BaseController {
     @DubboReference
     private AdminService adminService;
 
+    @DubboReference
+    private RoleService roleService;
+
+    @DubboReference
+    private AdminRoleService adminRoleService;
+
+
     /**
-     *  处理/请求，跳转到index页，搜索处理、分页处理
+     * 处理/请求，跳转到index页，搜索处理、分页处理
      */
     @RequestMapping
     public String index(Map map, HttpServletRequest request) {
         //处理请求参数
-        Map<String,Object> filters = getFilters(request);
+        Map<String, Object> filters = getFilters(request);
         //传递参数到service层，拿到查询结果并构建分页对象
         PageInfo<Admin> page = adminService.findPage(filters);
 
@@ -80,14 +91,14 @@ public class AdminController extends BaseController {
             Map map
     ) {
         Admin admin = adminService.getById(id);
-        map.put("admin",admin);
+        map.put("admin", admin);
         return PAGE_EDIT;
     }
 
     /**
      * 处理/update请求，执行资源修改操作
      */
-    @RequestMapping(value="/update")
+    @RequestMapping(value = "/update")
     public String update(Admin admin) {
         adminService.update(admin);
         return PAGE_SUCCESS;
@@ -107,8 +118,8 @@ public class AdminController extends BaseController {
      * 处理/uploadShow/id请求，跳转到头像上传页面
      */
     @RequestMapping("/uploadShow/{adminId}")
-    public String uploadShow(@PathVariable Long adminId,Map map){
-        map.put("adminId",adminId);
+    public String uploadShow(@PathVariable Long adminId, Map map) {
+        map.put("adminId", adminId);
         return PAGE_UPLOED_SHOW;
     }
 
@@ -118,16 +129,41 @@ public class AdminController extends BaseController {
     @RequestMapping("/upload")
     public String upload(Long adminId, @RequestParam("file") MultipartFile file) throws IOException {
         //1. 将图片上传到七牛云，名称必须确保唯一！⚠️
-        String fileName= UUID.randomUUID().toString()+System.currentTimeMillis();
-        QiniuUtil.upload2Qiniu(file.getBytes(),fileName);
+        String fileName = UUID.randomUUID().toString() + System.currentTimeMillis();
+        QiniuUtil.upload2Qiniu(file.getBytes(), fileName);
         //2. 对当前用户做修改操作，将head_url进行修改
-        Admin admin=new Admin();
+        Admin admin = new Admin();
         admin.setId(adminId);
         //使用七牛云空间域名+图片名字拼凑图片的完整URL
-        admin.setHeadUrl("http://rm5n3wdxr.hb-bkt.clouddn.com/"+fileName);
+        admin.setHeadUrl("http://rm5n3wdxr.hb-bkt.clouddn.com/" + fileName);
         adminService.update(admin);
         return PAGE_SUCCESS;
     }
 
+    /**
+     * 处理/assignShow/id路径，跳转到添加角色页面
+     */
+    @RequestMapping("/assignShow/{adminId}")
+    public String assignShow(@PathVariable Long adminId, Map map) {
+        map.put("adminId", adminId);
+        //需要从数据库查询得到两个List集合
+        //1. 当前用户未拥有的角色信息
+        //2. 当前用户已拥有的角色信息
+        Map<String, List<Role>> map1 = roleService.findRoleByAdminId(adminId);
+        //map1中的两个对数据，需要放在请求域(将map1中的数据添加到map内)
+        map.putAll(map1);
+        return "admin/assignShow";
+    }
 
+    /**
+     * 为当前用户添加多个角色
+     */
+    @RequestMapping("/assignRole")
+    //MVC的强大之处，使用数组接收字符串"1,2,3,"，可直接将请求参数转化为数组
+    public String assignRole(Long adminId, Long[] roleIds) {
+        System.out.println(adminId);
+        System.out.println(Arrays.toString(roleIds));
+        adminRoleService.insertAdminRole(adminId, roleIds);
+        return PAGE_SUCCESS;
+    }
 }

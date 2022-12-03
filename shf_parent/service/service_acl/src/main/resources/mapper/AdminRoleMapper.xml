@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.AdminRoleDao">
+
+    <!--根据用户id获取所有角色id值集合-->
+    <select id="findRoleIdsByAdminId" resultType="long">
+        select role_id from acl_admin_role where admin_id=#{adminId} and is_deleted=0
+    </select>
+
+    <!--删除用户的所有角色-->
+    <update id="deleteByAdminId" >
+        update acl_admin_role set is_deleted=1 where admin_id=#{adminId}
+    </update>
+
+    <!--为用户新增一个角色-->
+    <insert id="insert">
+        insert into acl_admin_role(role_id,admin_id)
+        values(#{roleId},#{adminId})
+    </insert>
+</mapper>

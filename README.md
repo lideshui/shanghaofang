@@ -13479,4 +13479,764 @@ public class LoginInterceptor implements HandlerInterceptor {
 
 
 
-## 
+## 8.5管理已关注房源
+
+### 8.5.1准备前端资源
+
+#### 8.5.1.1创建我的关注页面
+
+在webapp目录下创建follow.html
+
+```html
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta name="Author" contect="http://www.webqin.net">
+    <title>尚好房</title>
+    <link rel="shortcut icon" href="/static/images/favicon.ico"/>
+    <link type="text/css" href="/static/css/css.css" rel="stylesheet"/>
+    <script type="text/javascript" src="/static/js/jquery.js"></script>
+    <script type="text/javascript" src="/static/js/js.js"></script>
+    <script src="/static/js/vue.js"></script>
+    <script src="/static/js/axios.js"></script>
+    <script type="text/javascript">
+        $(function () {
+            //导航定位
+            $(".nav li:eq(6)").addClass("navCur");
+        })
+    </script>
+</head>
+
+<body>
+<div id="follow">
+    <div class="header">
+        <div class="width1190">
+            <div class="fl">您好，欢迎来到尚好房！</div>
+            <!--判断用户未登录显示的样式-->
+            <div class="fr" v-if="userInfo.nickName==''">
+                <a href="login.html">登录</a> |
+                <a href="register.html">注册</a> |
+                <a href="javascript:;">加入收藏</a> |
+                <a href="javascript:;">设为首页</a>
+            </div>
+            <!--判断用户登录后显示的样式-->
+            <div class="fr" v-else>
+                <a href="javascript:;">欢迎 {{ userInfo.nickName }}</a> |
+                <a href="javascript:;" @click="logout">退出</a> |
+                <a href="follow.html">我的关注</a> |
+                <a href="javascript:;">加入收藏</a> |
+                <a href="javascript:;">设为首页</a>
+            </div>
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div>
+    <div class="list-nav">
+        <div class="width1190">
+            <div class="list">
+                <h3>房源分类</h3>
+            </div><!--list/-->
+            <ul class="nav">
+                <li><a href="index.html">首页</a></li>
+                <li><a href="about.html">关于我们</a></li>
+                <li><a href="contact.html">联系我们</a></li>
+                <div class="clears"></div>
+            </ul><!--nav/-->
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div><!--list-nav/-->
+    <div class="banner" style="background:url(/static/images/ban.jpg) center center no-repeat;"></div>
+
+    <div class="content">
+        <div class="width1190">
+            <div class="vip-left">
+                <div class="vipNav">
+                    <h3 class="vipTitle">会员中心</h3>
+                    <dl>
+                        <dt class="vipIcon3">账户设置</dt>
+                        <dd>
+                            <a href="javascript:;">我的资料</a>
+                            <a href="javascript:;">账户密码设置</a>
+                        </dd>
+                        <dt class="vipIcon1">我的尚好房</dt>
+                        <dd>
+                            <a href="follow.html" class="vipNavCur">关注房源</a>
+                            <a href="javascript:;">申请社区自由经纪人</a>
+                            <a href="javascript:;">社区自由经纪人</a>
+                        </dd>
+                    </dl>
+                </div><!--vipNav/-->
+            </div><!--vip-left/-->
+            <div class="vip-right">
+                <h3 class="vipright-title">关注房源</h3>
+                <ul class="guanzhueq">
+                    <li class="guanzhueqcur"><a href="javascript:;">二手房</a></li>
+                    <div class="clearfix"></div>
+                </ul><!--guanzhueq/-->
+                <div class="guanzhulist">
+                    <dl v-for="item in page.list" :key="item.id">
+                        <dt><a :href="'info.html?id='+item.houseId"><img :src="item.defaultImageUrl" width="190"
+                                                                         height="128"/></a></dt>
+                        <dd>
+                            <h3><a :href="'info.html?id='+item.houseId">{{ item.name }}</a></h3>
+                            <div class="guantext">{{ item.buildArea }}平 {{ item.houseTypeName}} {{ item.floorName}} {{
+                                item.directionName}}
+                            </div>
+                            <div class="guantext2">关注时间：{{ item.createTimeString}}
+                                <a href="javascript:;" class="qxgz" @click="cancelFollow(item.id)">取消关注</a></div>
+                        </dd>
+                        <div class="price">¥ <strong>{{ item.totalPrice }}</strong><span class="font12">万元</span></div>
+                        <div class="clearfix"></div>
+                    </dl>
+                </div><!--guanzhulist/-->
+                <div class="clears"></div>
+                <ul class="pages">
+                    <li>
+                        <a href="javascript:;" @click="fetchData(page.prePage)" v-if="page.hasPreviousPage">上一页</a>
+                    </li>
+                    <li v-for="item in page.navigatepageNums" :class="item==page.pageNum ? 'page_active' : ''">
+                        <a href="javascript:;" @click="fetchData(item)">{{ item }}</a>
+                    </li>
+                    <li>
+                        <a href="javascript:;" @click="fetchData(page.nextPage)" v-if="page.hasNextPage">下一页</a>
+                    </li>
+                </ul>
+            </div><!--vip-right/-->
+            <div class="clearfix"></div>
+        </div><!--width1190/-->
+    </div><!--content/-->
+
+    <div class="footer">
+        <div class="width1190">
+            <div class="fl"><a href="index.html"><strong>尚好房</strong></a><a href="about.html">关于我们</a><a
+                    href="contact.html">联系我们</a><a href="follow.html">个人中心</a></div>
+            <div class="fr">
+                <dl>
+                    <dt><img src="/static/images/erweima.png" width="76" height="76"/></dt>
+                    <dd>微信扫一扫<br/>房价点评，精彩发布</dd>
+                </dl>
+                <dl>
+                    <dt><img src="/static/images/erweima.png" width="76" height="76"/></dt>
+                    <dd>微信扫一扫<br/>房价点评，精彩发布</dd>
+                </dl>
+                <div class="clears"></div>
+            </div>
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div><!--footer/-->
+    <div class="copy">Copyright@ 2020 尚好房 版权所有 沪ICP备1234567号-0&nbsp;&nbsp;&nbsp;&nbsp;技术支持：XXX</div>
+    <div class="bg100"></div>
+</div>
+<script src="/static/js/api/userFollow.js"></script>
+<script src="/static/js/api/user.js"></script>
+<script>
+    var app = new Vue({
+        el: '#follow',
+
+        data: {
+            //接口返回的分页数据，在此声明
+            page: {
+                list: [],
+                pageNum: 1,
+                pageSize: 2,
+                pages: 1,
+                navigatepageNums: [1, 2, 3, 4],
+                prePage: 0,
+                nextPage: 0,
+                hasPreviousPage: false,
+                hasNextPage: false
+            },
+
+            userInfo: {
+                nickName: ''
+            }
+        },
+
+        mounted() {
+            //首次进入页面渲染房源信息
+            this.fetchData(1)
+            //获取登录信息
+            this.login()
+        },
+
+        methods: {
+            //获取登录信息
+            login() {
+                let userInfoString = window.localStorage.getItem("userInfo")
+                if (userInfoString != null && userInfoString != '') {
+                    this.userInfo = JSON.parse(userInfoString)
+                }
+            },
+            //登出方法
+            logout() {
+                axios.get('/userInfo/logout').then(function (response) {
+                    window.localStorage.setItem("userInfo", '')
+                    window.location.href = 'index.html'
+                });
+            },
+            //查询当前用户关注的所有房源信息
+            fetchData(pageNum = 1) {
+                if (pageNum < 1) pageNum = 1
+                if (pageNum >= this.pages) pageNum = this.pages
+
+                var that = this
+                axios.get('/userFollow/auth/list/' + pageNum + '/' + this.page.pageSize).then(function (response) {
+                    //如果没登录，拦截器会返回208状态，跳转登录页面
+                    if (response.data.code == 208) {
+                        window.location.href = 'login.html?originUrl=' + window.location.href
+                    } else {
+                        that.page = response.data.data
+                    }
+                });
+            },
+            //取消关注的方法
+            cancelFollow(id) {
+                var that = this
+                axios.get('/userFollow/auth/cancelFollow/' + id).then(response => {
+                    //如果没登录，拦截器会返回208状态，跳转到登录页面
+                    if (response.data.code == 208) {
+                        window.location.href = 'login.html?originUrl=' + window.location.href
+                    } else {
+                        //如果登录就重新获取一次当前用户关注的房源信息
+                        that.fetchData(1)
+                    }
+                })
+            }
+        }
+    })
+</script>
+</body>
+</html>
+```
+
+
+
+### 8.5.2解决跨服务调用
+
+因为粒度较大，导致无法在service_user中调用service_house的dao层
+
+#### 8.5.2.1解决方案
+
+1. 在dao层中重写DictDao（代码重复，不推荐）
+2. 直接调用ServiceAPI，即消费DictService服务，使用其方法，使当前服务即是提供者又是消费者⚠️（推荐）
+
+
+
+#### 8.5.2.2ServiceAPI
+
+service_house模块的DictService添加内容
+
+```java
+/**
+ * 为service_user服务：根据id获取其在字典中对应的name
+ */
+String getNameById(Long id);
+```
+
+
+
+#### 8.5.2.3service层
+
+service_house模块的DictServiceImpl添加内容
+
+```java
+/**
+ * 为service_user提供服务：根据id获取其在字典中对应的name
+ */
+@Override
+public String getNameById(Long id){
+    return dictDao.getNameById(id);
+}
+```
+
+
+
+### 8.5.3准备后端资源
+
+#### 8.5.3.1ServiceAPI
+
+UserFollowService添加内容
+
+```java
+/**
+ * 查询当前登录用户的所有关注信息，UserFollowVo中包含了所有信息，最终以分页对象的形式返回
+ */
+PageInfo<UserFollowVo> findUserFollow(Integer pageNum, Integer pageSize, Long userId);
+```
+
+
+
+#### 8.5.3.2dao层
+
+UserFollowDao添加内容
+
+```java
+/**
+ * 三表联查，查询当前登录用户的所有关注信息，UserFollowVo中包含了所有信息，返回该对象的List集合即可
+ */
+List<UserFollowVo> findUserFollow(Long userId);
+```
+
+UserFollowMapper添加内容
+
+```xml
+<!--查询当前登录用户的所有关注信息，UserFollowVo中包含了所有信息-->
+<select id="findUserFollow" resultType="userFollowVo">
+    SELECT uf.id,uf.house_id,uf.create_time,
+    hc.name communityName,
+    hh.name,hh.build_area,hh.total_price,hh.default_image_url,hh.house_type_id,hh.floor_id,hh.direction_id
+    FROM user_follow uf LEFT JOIN hse_house hh
+    ON uf.house_id = hh.id LEFT JOIN hse_community hc
+    ON hh.community_id=hc.id
+    WHERE user_id=#{userId}
+    AND uf.is_deleted=0
+    AND hh.is_deleted=0
+    AND hc.is_deleted=0
+</select>
+
+<!--删除当前用户关注的房源信息-->
+<update id="delete">
+    update user_follow set is_deleted=1 where id=#{id}
+</update>
+```
+
+
+
+#### 8.5.3.3service层
+
+UserFollowServiceImpl添加内容
+
+```java
+    //不在同一个服务内，因此无法使用DictDao，只能从注册中心获取DictService对象来使用其方法⚠️
+    @DubboReference
+    private DictService dictService;
+
+    /**
+     * 查询当前登录用户的所有关注信息，UserFollowVo中包含了所有信息，最终以PageInfo对象的Json形式返回给前端
+     */
+    @Override
+    public PageInfo<UserFollowVo> findUserFollow(Integer pageNum, Integer pageSize, Long userId) {
+        PageHelper.startPage(pageNum,pageSize);
+        List<UserFollowVo> userFollowVoList = userFollowDao.findUserFollow(userId);
+        for (UserFollowVo userFollowVo : userFollowVoList) {
+            //因为粒度还是比较大，所以无法使用service_house内的DictDao的内容
+            //解决方案：⚠️
+            //1. 在dao层中重写DictDao（代码重复，不推荐）
+            //2. 直接调用ServiceAPI，即消费DictService服务，使用其方法，使当前服务即是提供者又是消费者⚠️
+            //service_user不仅仅是提供者，还是一个消费者(允许的)
+            userFollowVo.setHouseTypeName(dictService.getNameById(userFollowVo.getHouseTypeId()));
+            userFollowVo.setFloorName(dictService.getNameById(userFollowVo.getFloorId()));
+            userFollowVo.setDirectionName(dictService.getNameById(userFollowVo.getDirectionId()));
+        }
+        return new PageInfo<>(userFollowVoList,3);
+    }
+```
+
+
+
+#### 8.5.3.4controller层
+
+UserFollowController添加内容
+
+```java
+/**
+ * 处理/auth/list/pageNum/pageSize路径，获取用户所有关注的房源
+ * 先从会话域中获取当前用户的登录信息，再以分页对象的形式返还给前端
+ */
+@RequestMapping("/auth/list/{pageNum}/{pageSize}")
+public Result list(@PathVariable Integer pageNum,@PathVariable Integer pageSize,HttpSession session){
+    //查询当前登录人关注的房源信息(带分页)
+    UserInfo userInfo = (UserInfo) session.getAttribute("userInfo");
+    PageInfo<UserFollowVo> userFollowVoList = userFollowService.findUserFollow(pageNum, pageSize, userInfo.getId());
+    return Result.ok(userFollowVoList);
+}
+
+/**
+ * 处理/auth/cancelFollow/id路径，取消关注房源
+ */
+@RequestMapping("/auth/cancelFollow/{userFollowId}")
+public Result cancelFollow(@PathVariable Long userFollowId){
+    userFollowService.delete(userFollowId);
+    return Result.ok();
+}
+```
+
+
+
+
+
+# 9 权限管理
+
+## 9.1给用户分配角色
+
+操作的服务提供者模块是service_acl，操作的服务消费者模块是web_admin
+
+### 9.1.1准备web资源
+
+#### 9.1.1.1修改index
+
+修改admin/index，添加分配角色的按钮和js触发事件
+
+```html
+ <a class="assign" th:attr="data-id=${item.id}">分配角色</a>
+```
+
+```javascript
+$(".assign").on("click",function () {
+  var id = $(this).attr("data-id");
+  opt.openWin('/admin/assignShow/'+id,'分配角色',550,450)
+});
+```
+
+
+
+#### 9.1.1.2创建分配角色页面
+
+创建admin/assignShow.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+
+<style type="text/css">
+    select option{
+        width:260px;
+        height:25px;
+        line-height:25px;
+        padding: 5px 5px;
+    }
+</style>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <form id="ec" th:action="@{/admin/assignRole}" method="post" class="form-horizontal">
+            <!--将用户id放在隐藏域内-->
+            <input type="hidden" name="adminId" th:value="${adminId}">
+            <!--计划存储多个角色id，用户选择的多个角色id-->
+            <input type="hidden" name="roleIds" id="roleIds" value="">
+            <div style="text-align: center;padding-left: 20px;">
+                <div id="s1" style="float: left;">
+                    <div style="font-weight:900;">未选择</div>
+                    <select id="select1" multiple="multiple" style="width: 220px;height: 280px;overflow-y:auto;" ondblclick="funRight()">
+                        <option th:each="item: ${noAssignRoleList}" th:value="${item.id}" th:text="${item.roleName}">11</option>
+                    </select>
+                </div>
+                <div style="float: left;padding-top:120px;">
+                    <br />
+                    <button type="button" id="right"> &gt;&gt; </button><br /><br />
+
+                    <button type="button" id="left">  &lt;&lt; </button>
+
+                </div>
+                <div id="s2" style="float: left;">
+                    <div style="font-weight:900;">已选择</div>
+                    <select id="select2" multiple="multiple" style="width: 220px;height: 280px;overflow-y:auto;" ondblclick="funLeft()">
+                        <option th:each="item: ${assignRoleList}" th:value="${item.id}" th:text="${item.roleName}">11</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="clear: left;padding-top: 20px;">
+                    <button type="button" class="btn btn-sm btn-primary " onclick="add()" style="margin-left: 10px;"> 保存</button>
+                    <button type="button" class="btn btn-sm btn-primary " onclick="cancel()" style="margin-left: 10px;"> 重置</button>
+                    <button class="btn btn-sm btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button>
+                </div>
+                <br/>
+            </div>
+        </form>
+    </div>
+</div>
+<script th:inline="javascript">
+    $(function(){
+        $("#right").on("click",function() {
+            $("#select1 option").each(function(index, item){
+                if(item.selected == true){
+                    document.getElementById("select2").appendChild(item);
+                }
+            });
+        });
+
+        $("#left").on("click",function() {
+            $("#select2 option").each(function(index, item){
+                if(item.selected == true){
+                    document.getElementById("select1").appendChild(item);
+                }
+            });
+        });
+    });
+
+    function funRight() {
+        $("#right").trigger("click");
+    }
+
+    function funLeft() {
+        $("#left").trigger("click");
+    }
+
+    function add() {
+        var roleIds = "";//  1,8,10,
+        $("#select2 option").each(function(index, item){
+            roleIds += $(item).val() + ",";
+        });
+        //将拼接好的字符串设置给#roleIds的value属性上
+        $("#roleIds").val(roleIds);
+        //提交一个叫ec的表单
+        document.forms.ec.submit();
+    }
+
+    function cancel() {
+        window.location.reload();
+    }
+</script>
+</body>
+</html>
+```
+
+
+
+### 9.1.2准备后端数据
+
+#### 9.1.2.1ServiceAPI
+
+RoleService添加内容
+
+```java
+/**
+ * 查询该用户已拥有和未拥有的角色列表
+ * 使用集合作为返回值，可以一次性返回已拥有和未拥有两个不同的角色列表
+ */
+Map<String, List<Role>> findRoleByAdminId(Long adminId);
+```
+
+AdminRoleService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.AdminRole;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.AdminRoleService
+ */
+public interface AdminRoleService extends BaseService<AdminRole> {
+
+    /**
+     * 为当前用户添加多个角色
+     */
+    void insertAdminRole(Long adminId,Long[] roleIds);
+}
+```
+
+
+
+#### 9.1.2.2dao层
+
+RoleDao添加内容
+
+```java
+/**
+ * 获取所有角色信息
+ */
+List<Role> findAll();
+```
+
+RoleMapper添加内容
+
+```xml
+<!--获取所有角色-->
+<select id="findAll" resultType="role">
+    <include refid="columns"></include>
+    where is_deleted=0
+</select>
+```
+
+AdminRoleDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.AdminRole;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.AdminRoleDao
+ */
+public interface AdminRoleDao extends BaseDao<AdminRole> {
+    
+    /**
+     * 根据用户id获取所有角色id值集合
+     */
+    List<Long> findRoleIdsByAdminId(Long adminId);
+
+    /**
+     * 删除当前用户的所有角色
+     */
+    void deleteByAdminId(Long adminId);
+}
+```
+
+AdminRoleMapper
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.AdminRoleDao">
+
+   <!--根据用户id获取所有角色id值集合-->
+    <select id="findRoleIdsByAdminId" resultType="long">
+        select role_id from acl_admin_role where admin_id=#{adminId} and is_deleted=0
+    </select>
+
+    <!--删除用户的所有角色-->
+    <update id="deleteByAdminId" >
+        update acl_admin_role set is_deleted=1 where admin_id=#{adminId}
+    </update>
+
+    <!--为用户新增一个角色-->
+    <insert id="insert">
+        insert into acl_admin_role(role_id,admin_id)
+        values(#{roleId},#{adminId})
+    </insert>
+</mapper>
+```
+
+
+
+#### 9.1.2.3service层
+
+RoleServiceImpl添加内容
+
+```java
+@Autowired
+private AdminRoleDao adminRoleDao;
+
+/**
+* 查询该用户已拥有和未拥有的角色列表
+* 使用集合作为返回值，可以一次性返回已拥有和未拥有两个不同的角色列表
+*/
+@Override
+public Map<String, List<Role>> findRoleByAdminId(Long adminId) {
+    //1. 查询出所有的角色信息
+    List<Role> roleList = roleDao.findAll();
+    //2. 查询出当前用户拥有的角色id
+    List<Long> roleIds = adminRoleDao.findRoleIdsByAdminId(adminId);
+    //3. 循环所有的角色信息
+    List<Role> noAssignRoleList=new ArrayList<>();
+    List<Role> assignRoleList=new ArrayList<>();
+    for (Role role : roleList) {
+        //判断role的id是都在roleIds内存在
+        if(roleIds.contains(role.getId())){
+            //说明role是当前用户已拥有的角色
+            assignRoleList.add(role);
+        }else{
+            //说明role是当前用户未拥有的角色
+            noAssignRoleList.add(role);
+        }
+    }
+    Map<String,List<Role>> map=new HashMap<>();
+    //存储未拥有的角色列表
+    map.put("noAssignRoleList",noAssignRoleList);
+    //存储已拥有的角色列表
+    map.put("assignRoleList",assignRoleList);
+    return map;
+}
+```
+
+AdminRoleServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.AdminRoleDao;
+import com.atguigu.dao.BaseDao;
+import com.atguigu.entity.AdminRole;
+import com.atguigu.service.AdminRoleService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.AdminRoleServiceImpl
+ */
+@DubboService
+public class AdminRoleServiceImpl extends BaseServiceImpl<AdminRole> implements AdminRoleService {
+
+    @Autowired
+    private AdminRoleDao adminRoleDao;
+
+    @Override
+    public BaseDao<AdminRole> getEntityDao() {
+        return adminRoleDao;
+    }
+
+    /**
+     * 为当前用户添加角色
+     * 添加步骤：先全部删除之前设置的角色，再循环新增现在的角色
+     */
+    @Override
+    @Transactional
+    public void insertAdminRole(Long adminId, Long[] roleIds) {
+        //1. 先将adminId的所有角色删除
+        adminRoleDao.deleteByAdminId(adminId);
+        //2. 在循环添加新的角色信息
+        for (Long roleId : roleIds) {
+            if (roleId == null)
+                continue;
+            //创建实例对象并赋值，为新增作准备
+            AdminRole adminRole = new AdminRole();
+            adminRole.setRoleId(roleId);
+            adminRole.setAdminId(adminId);
+            adminRoleDao.insert(adminRole);
+        }
+    }
+}
+```
+
+
+
+#### 9.1.2.4controller层
+
+AdminController添加内容
+
+```java
+@DubboReference
+private RoleService roleService;
+
+/**
+ * 处理/assignShow/id路径，跳转到添加角色页面
+ */
+@RequestMapping("/assignShow/{adminId}")
+public String assignShow(@PathVariable Long adminId,Map map){
+    map.put("adminId",adminId);
+    //需要从数据库查询得到两个List集合
+    //1. 当前用户未拥有的角色信息
+    //2. 当前用户已拥有的角色信息
+    Map<String, List<Role>> map1 = roleService.findRoleByAdminId(adminId);
+    //map1中的两个对数据，需要放在请求域(将map1中的数据添加到map内)
+    map.putAll(map1);
+    return "admin/assignShow";
+}
+
+@DubboReference
+private AdminRoleService adminRoleService;
+/**
+ * 为当前用户添加多个角色
+ */
+@RequestMapping("/assignRole")
+//MVC的强大之处，使用数组接收字符串"1,2,3,"，可直接将请求参数转化为数组
+public String assignRole(Long adminId,Long[] roleIds){
+    System.out.println(adminId);
+    System.out.println(Arrays.toString(roleIds));
+    adminRoleService.insertAdminRole(adminId,roleIds);
+    return PAGE_SUCCESS;
+}
+```
+
