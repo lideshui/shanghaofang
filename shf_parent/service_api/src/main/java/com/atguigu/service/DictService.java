@@ -28,4 +28,9 @@ public interface DictService {
      */
     List<Dict> findListByParentId(Long parentId);
 
+    /**
+     * 为service_user服务：根据id获取其在字典中对应的name
+     */
+    String getNameById(Long id);
+
 }

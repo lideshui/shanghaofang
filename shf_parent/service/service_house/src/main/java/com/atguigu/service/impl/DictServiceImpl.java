@@ -70,4 +70,12 @@ public class DictServiceImpl implements DictService {
         return dictDao.findListByParentId(parentId);
     }
 
+    /**
+     * 为service_user提供服务：根据id获取其在字典中对应的name
+     */
+    @Override
+    public String getNameById(Long id){
+        return dictDao.getNameById(id);
+    }
+
 }
