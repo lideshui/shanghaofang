@@ -5,6 +5,7 @@ import com.atguigu.result.Result;
 import com.atguigu.result.ResultCodeEnum;
 import com.atguigu.service.UserInfoService;
 import com.atguigu.util.MD5;
+import com.atguigu.vo.LoginVo;
 import com.atguigu.vo.RegisterVo;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Controller;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.servlet.http.HttpSession;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @Description: TODD
@@ -33,12 +36,12 @@ public class UserInfoController {
      * 此处模拟8888验证码返回给用户， 正常情况下应该以短信的形式，并且将code放在会话域
      */
     @RequestMapping("/sendCode/{phone}")
-    public Result sendCode(@PathVariable String phone, HttpSession session){
+    public Result sendCode(@PathVariable String phone, HttpSession session) {
         //真实环境就是一个4位或者6位的随机数
         //如果是真实环境，需要将code发送到用户的手机上，并且将code放在会话域(后续验证验证码是否正确)
-        String code="8888";
+        String code = "8888";
         //现在是模拟，将code响应给前台，还是将验证码放在会话域
-        session.setAttribute("code",code);
+        session.setAttribute("code", code);
         return Result.ok(code);
     }
 
@@ -48,31 +51,31 @@ public class UserInfoController {
      * registerVo请求参数包裹着注册所需的全部信息
      */
     @RequestMapping("/register")
-    public Result register(@RequestBody RegisterVo registerVo, HttpSession session){
+    public Result register(@RequestBody RegisterVo registerVo, HttpSession session) {
         //1. 获取到注册的数据(code/手机号/密码/昵称)
         String code = registerVo.getCode();
         String phone = registerVo.getPhone();
         String password = registerVo.getPassword();
         String nickName = registerVo.getNickName();
         //2. 校验参数是否为空
-        if(StringUtils.isEmpty(code)||StringUtils.isEmpty(phone)||StringUtils.isEmpty(password)||StringUtils.isEmpty(nickName)){
+        if (StringUtils.isEmpty(code) || StringUtils.isEmpty(phone) || StringUtils.isEmpty(password) || StringUtils.isEmpty(nickName)) {
             //若有空参数，直接给前台一个参数错误203响应
             return Result.build(null, ResultCodeEnum.PARAM_ERROR);
         }
         //3. 校验验证码是否正确
         Object trueCode = session.getAttribute("code");
-        if(!trueCode.equals(code)){
-            return Result.build(null,ResultCodeEnum.CODE_ERROR);
+        if (!trueCode.equals(code)) {
+            return Result.build(null, ResultCodeEnum.CODE_ERROR);
         }
         //4. 校验手机号是否重复(根据phone，去数据库做二次查询)
         UserInfo userInfo = userInfoService.findUserInfoByPhone(phone);
-        if(userInfo!=null){
+        if (userInfo != null) {
             //若不为空，则查询到了实例对象，说明手机号已被使用
-            return Result.build(null,ResultCodeEnum.PHONE_REGISTER_ERROR);
+            return Result.build(null, ResultCodeEnum.PHONE_REGISTER_ERROR);
         }
 
         //5. 将数据保存到数据库即可
-        UserInfo info=new UserInfo();
+        UserInfo info = new UserInfo();
         info.setPhone(phone);
         info.setNickName(nickName);
         //使用MD5对密码进行加密
@@ -83,6 +86,57 @@ public class UserInfoController {
         //新增操作
         userInfoService.insert(info);
 
+        return Result.ok();
+    }
+
+    /**
+     * 处理/login路径，用户登录操作
+     * 先校验，通过校验后再将信息放到会话域一份，并返回给前端一份
+     */
+    @RequestMapping("/login")
+    public Result login(@RequestBody LoginVo loginVo, HttpSession session) {
+        //1. 获取前端请求参数，手机号和密码
+        String phone = loginVo.getPhone();
+        String password = loginVo.getPassword();//password是明文
+        //2. 前端请求参数的非空校验
+        if (StringUtils.isEmpty(phone) || StringUtils.isEmpty(password)) {
+            return Result.build(null, ResultCodeEnum.PARAM_ERROR);
+        }
+        //3. 验证用户名是否正确(根据phone去查询UserInfo对象)
+        UserInfo userInfo = userInfoService.findUserInfoByPhone(phone);
+        if (userInfo == null) {
+            return Result.build(null, ResultCodeEnum.ACCOUNT_ERROR);
+        }
+        //4. 验证登录密码是否正确，注册时使用MD5加密，相同的明文多次加密的结果是一样的
+        //还有其他加密方式，这里必须根据注册时的加密方式来编写对应的校验方式
+        if (!userInfo.getPassword().equals(MD5.encrypt(password))) {
+            //返回密码不正确的相关验证码和信息
+            return Result.build(null, ResultCodeEnum.PASSWORD_ERROR);
+        }
+        //5. 验证用户是否被锁定(status是否是1)
+        if (userInfo.getStatus() == 0) {
+            //返回用户锁定的相关验证码和信息
+            return Result.build(null, ResultCodeEnum.ACCOUNT_LOCK_ERROR);
+        }
+        //6. 将当前登录人信息保存在会话域
+        session.setAttribute("userInfo", userInfo);
+
+        //7. 将用户信息(手机号、昵称)响应给前端
+        Map<String, Object> map = new HashMap<>();
+        map.put("phone", phone);
+        map.put("nickName", userInfo.getNickName());
+
+        return Result.ok(map);//这里返回200的响应
+    }
+
+
+    /**
+     * 处理/logout路径，用户登出请求
+     */
+    @RequestMapping("/logout")
+    public Result logout(HttpSession session) {
+        //从会话域中删除用户信息
+        session.removeAttribute("userInfo");
         return Result.ok();
     }
 

@@ -23,9 +23,18 @@
     <div class="header">
         <div class="width1190">
             <div class="fl">您好，欢迎来到尚好房！</div>
-            <div class="fr">
+            <!--判断用户未登录显示的样式-->
+            <div class="fr" v-if="userInfo.nickName==''">
                 <a href="login.html">登录</a> |
                 <a href="register.html">注册</a> |
+                <a href="javascript:;">加入收藏</a> |
+                <a href="javascript:;">设为首页</a>
+            </div>
+            <!--判断用户登录后显示的样式-->
+            <div class="fr" v-else>
+                <a href="javascript:;">欢迎 {{ userInfo.nickName }}</a> |
+                <a href="javascript:;" @click="logout">退出</a> |
+                <a href="follow.html">我的关注</a> |
                 <a href="javascript:;">加入收藏</a> |
                 <a href="javascript:;">设为首页</a>
             </div>
@@ -210,6 +219,7 @@
             directionList: [],
             decorationList: [],
             houseUseList: [],
+
             //接口当前页的数据，存储分页信息
             page: {
                 list: [],
@@ -227,6 +237,7 @@
                 //是否为尾页
                 hasNextPage: false
             },
+
             //存储查询条件的Json对象，存储用户点击的搜索项⚠️
             //该Json对象会传到后端dao层，dao层判断是否为空串进行拼接查询条件
             houseQueryVo: {
@@ -238,19 +249,42 @@
                 directionId: '',
                 decorationId: '',
                 houseUseId: '',
-
+                //排序规则相关属性
                 defaultSort: 1,
                 priceSort: null,
                 timeSort: null,
+            },
 
+            //存储从localStorage获取的登录的用户信息
+            userInfo:{
+                nickName:''
             },
         },
         created() {
+            //异步获取页面所以搜索项数据
             this.fetchDictData()
             //默认刚进入页码显示全部房源，发起一次异步请求
             this.fetchData(1)
+            //默认进入页面检验是否已登录
+            this.login();
         },
         methods: {
+            //检验是否登录，去.localStorage获取登录信息，若有登录信息就赋给data中的userInfo对象
+            login(){
+                var userInfoString = window.localStorage.getItem("userInfo")
+                if(userInfoString != null && userInfoString != '') {
+                    this.userInfo = JSON.parse(userInfoString)
+                }
+            },
+            //登出当前用户，从localStorage移除登录信息，并跳转到首页
+            logout() {
+                axios.get('/userInfo/logout').then(function (response) {
+                    //移除掉本地的userInfo数据
+                    window.localStorage.setItem("userInfo", '')
+                    //并且回到首页
+                    window.location.href = 'index.html'
+                });
+            },
             fetchDictData() {
                 //axios在then的内部不能使用Vue的实例化的this, 因为在内部 this 没有被绑定
                 var that = this

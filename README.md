@@ -11800,3 +11800,1376 @@ HouseController添加内容
 
 
 
+# 8 前端登录、注册与关注房源
+
+## 8.1注册
+
+### 8.1.1搭建service_user模块
+
+以service模块为父工程，在service模块下创建service_user模块，搭建过程与service_user一致
+
+#### 8.1.1.1模块架构
+
+模块的目录及文件架构如下
+
+- web_front
+  - pom.xml（打包方式设置为war，修改jetty端口）⚠️
+  - src/main/
+    - java
+      - com.atguigu.dao
+      - com.atguigu.service.impl
+    - resources
+      - mapper
+      - spring
+        - spring-mvc.xml
+        - spring-registry.xml（修改提供者名字和端口）⚠️
+        - spring-service.xml
+      - logback.xml
+      - db.properties
+      - mybaties-config.xml
+    - webapp
+      - WEB-INF
+        - web.xml
+
+
+
+#### 8.1.1.2pom.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>service</artifactId>
+        <groupId>com.atguigu</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>service_user</artifactId>
+    <packaging>war</packaging>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-maven-plugin</artifactId>
+                <version>9.4.15.v20190215</version>
+                <configuration>
+                    <!-- 如果检测到项目有更改则自动热部署，每隔n秒扫描一次。默认为0，即不扫描-->
+                    <scanIntervalSeconds>10</scanIntervalSeconds>
+                    <webAppConfig>
+                        <!--指定web项目的根路径，默认为/ -->
+                        <contextPath>/</contextPath>
+                    </webAppConfig>
+                    <httpConnector>
+                        <!--端口号，默认 8080-->
+                        <port>7003</port>
+                    </httpConnector>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+
+
+#### 8.1.1.3spring-registry.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+    <!-- 定义服务提供者名称名称 -->
+    <dubbo:application name="service_user"/>
+
+    <!--指定暴露服务的端口，如果不指定默认为20880 -->
+    <dubbo:protocol name="dubbo" port="20883"/>
+
+    <!--指定服务注册中心地址-->
+    <dubbo:registry address="zookeeper://localhost:2181"/>
+
+    <!--批量扫描，发布服务-->
+    <dubbo:annotation package="com.atguigu"/>
+</beans>
+```
+
+
+
+### 8.1.2短信验证
+
+#### 8.1.2.1创建注册页面
+
+在webapp下创建register.html文件
+
+```html
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta name="Author" contect="http://www.webqin.net">
+    <title>尚好房</title>
+    <link rel="shortcut icon" href="/static//static/images/favicon.ico"/>
+    <link type="text/css" href="/static/css/css.css" rel="stylesheet"/>
+    <script type="text/javascript" src="/static/js/jquery.js"></script>
+    <script type="text/javascript" src="/static/js/js.js"></script>
+    <script src="/static/js/vue.js"></script>
+    <script src="/static/js/axios.js"></script>
+    <script type="text/javascript">
+        $(function () {
+            //导航定位
+            $(".nav li:eq(6)").addClass("navCur");
+        })
+    </script>
+</head>
+
+<body>
+<div id="register">
+    <div class="header">
+        <div class="width1190">
+            <div class="fl">您好，欢迎来到尚好房！</div>
+            <div class="fr">
+                <a href="login.html">登录</a> |
+                <a href="register.html">注册</a> |
+                <a href="javascript:;">加入收藏</a> |
+                <a href="javascript:;">设为首页</a>
+            </div>
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div>
+    <div class="list-nav">
+        <div class="width1190">
+            <div class="list"><h3>房源分类</h3></div><!--list/-->
+            <ul class="nav">
+                <li><a href="index.html">首页</a></li>
+                <li><a href="about.html">关于我们</a></li>
+                <li><a href="contact.html">联系我们</a></li>
+                <div class="clears"></div>
+            </ul><!--nav/-->
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div><!--list-nav/-->
+    <div class="banner" style="background:url(/static/images/ban.jpg) center center no-repeat;"></div>
+
+    <div class="content">
+        <div class="width1190">
+            <div class="reg-logo">
+                <form id="signupForm" method="post" action="" class="zcform">
+                    <p class="clearfix">
+                        <label class="one" for="agent">手机号码：</label>
+                        <input id="agent" v-model="registerVo.phone" type="text" class="required" style="width: 200px;" maxlength="11" placeholder="请输入您的手机号码"/>
+                        <input type="button" :value="codeTest" @click="getCodeFun()" style="padding: 5px 5px;width: 100px;height: 48px;"/>
+                    </p>
+                    <p class="clearfix">
+                        <span style="color: red;margin-left: 90px;">{{valid.phone}}</span>
+                    </p>
+                    <p class="clearfix">
+                        <label class="one" for="agent">验证码：</label>
+                        <input id="agent" v-model="registerVo.code" type="text" class="required" maxlength="4" value placeholder="请输入手机验证码"/>
+                    </p>
+                    <p class="clearfix">
+                        <span style="color: red;margin-left: 90px;">{{valid.code}}</span>
+                    </p>
+                    <p class="clearfix">
+                        <label class="one" for="password">登录密码：</label>
+                        <input id="password" v-model="registerVo.password" type="password" maxlength="9"
+                               class="{required:true,rangelength:[8,20],}" value placeholder="请输入密码"/>
+                    </p>
+                    <p class="clearfix">
+                        <span style="color: red;margin-left: 90px;">{{valid.password}}</span>
+                    </p>
+                    <p class="clearfix">
+                        <label class="one" for="confirm_password">确认密码：</label>
+                        <input id="confirm_password" v-model="registerVo.confirmPassword"  type="password" maxlength="9"
+                               class="{required:true,equalTo:'#password'}" value placeholder="请再次输入密码"/>
+                    </p>
+                    <p class="clearfix">
+                        <span style="color: red;margin-left: 90px;">{{valid.confirmPassword}}</span>
+                    </p>
+                    <p class="clearfix">
+                        <label class="one" for="agent">昵称：</label>
+                        <input id="agent" v-model="registerVo.nickName" type="text" maxlength="10" class="required" value placeholder="请输入您的昵称"/>
+                    </p>
+                    <p class="clearfix">
+                        <span style="color: red;margin-left: 90px;">{{valid.nickName}}</span>
+                    </p>
+                    <!--<p class="clearfix agreement">
+                        <input type="checkbox" />
+                        <b class="left">已阅读并同意<a href="#">《用户协议》</a></b>
+                    </p>-->
+                    <p class="clearfix"><input class="submit" type="button" @click="submitRegister" value="立即注册"/></p>
+                </form>
+                <div class="reg-logo-right">
+                    <h3>如果您已有账号，请</h3>
+                    <a href="login.html" class="logo-a">立即登录</a>
+                </div><!--reg-logo-right/-->
+                <div class="clears"></div>
+            </div><!--reg-logo/-->
+        </div><!--width1190/-->
+    </div><!--content/-->
+
+    <div class="footer">
+        <div class="width1190">
+            <div class="fl"><a href="index.html"><strong>尚好房</strong></a><a href="about.html">关于我们</a><a
+                    href="contact.html">联系我们</a><a href="follow.html">个人中心</a></div>
+            <div class="fr">
+                <dl>
+                    <dt><img src="/static/images/erweima.png" width="76" height="76"/></dt>
+                    <dd>微信扫一扫<br/>房价点评，精彩发布</dd>
+                </dl>
+                <dl>
+                    <dt><img src="/static/images/erweima.png" width="76" height="76"/></dt>
+                    <dd>微信扫一扫<br/>房价点评，精彩发布</dd>
+                </dl>
+                <div class="clears"></div>
+            </div>
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div><!--footer/-->
+    <div class="copy">Copyright@ 2020 尚好房 版权所有 沪ICP备1234567号-0&nbsp;&nbsp;&nbsp;&nbsp;技术支持：XXX</div>
+    <div class="bg100"></div>
+</div>
+<script>
+    var app =new Vue({
+        el: '#register',
+
+        data: {
+            //包含着注册信息的对象，发起异步注册请求时主要传递该对象
+            registerVo: {
+                phone: '',
+                password: '',
+                confirmPassword: '',
+                nickName: '',
+                code: ''
+            },
+
+            valid: {
+                phone: '',
+                password: '',
+                confirmPassword: '',
+                nickName: '',
+                code: ''
+            },
+
+            sending: true,     //是否发送验证码
+            second: 60,        //倒计时间
+            codeTest: '获取验证码'
+        },
+
+        mounted () {
+        },
+
+        methods: {
+            submitRegister() {
+                var isValid = true
+                if(!(/^1[3456789]\d{9}$/.test(this.registerVo.phone))) {
+                    this.valid.phone = '手机号码不正确'
+                    isValid = false
+                }
+                if(this.registerVo.code == '') {
+                    this.valid.code = '验证码必须输入';
+                    isValid = false
+                }
+                if(this.registerVo.password == '') {
+                    this.valid.password = '密码必须输入';
+                    isValid = false
+                }
+                if(this.registerVo.password != this.registerVo.confirmPassword) {
+                    this.valid.confirmPassword = '密码不一致';
+                    isValid = false
+                }
+                if(this.registerVo.nickName == '') {
+                    this.valid.nickName = '昵称必须输入';
+                    isValid = false
+                }
+                if(!isValid) {
+                    return
+                }
+                var that = this
+                axios.post('/userInfo/register', this.registerVo).then(function (response) {
+                    if(response.data.code == 200){
+                        window.location.href = 'login.html'
+                    }else{
+                        alert(response.data.message);
+                    }
+                });
+
+            },
+
+            getCodeFun() {
+                if (!this.sending)
+                    return;
+
+                if (!(/^1[3456789]\d{9}$/.test(this.registerVo.phone))) {
+                    alert('手机号码不正确');
+                    return;
+                }
+
+                var that = this
+                axios.get('/userInfo/sendCode/'+this.registerVo.phone).then(function (response) {
+                    that.sending = false;
+                    //按照常理这一步没有，是用户查看短信，手动将验证码输入到文本框
+                    that.registerVo.code = response.data.data
+                    that.timeDown();
+                });
+            },
+
+            timeDown() {
+                let result = setInterval(() => {
+                --this.second;
+                this.codeTest = this.second
+                if (this.second < 1) {
+                    clearInterval(result);
+                    this.sending = true;
+                    this.second = 60;
+                    this.codeTest = "获取验证码"
+                }
+            }, 1000);
+            }
+        }
+    })
+</script>
+</body>
+</html>
+```
+
+
+
+#### 8.1.2.2准备后端接口
+
+UserInfoController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.result.Result;
+import com.atguigu.service.UserInfoService;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import javax.servlet.http.HttpSession;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.UserInfoController
+ */
+@Controller
+@RequestMapping("/userInfo")
+@ResponseBody
+public class UserInfoController {
+
+    /**
+     * 处理/sendCode/phone路径，用户输入手机号后获取验证码的请求
+     * 此处模拟8888验证码返回给用户， 正常情况下应该以短信的形式，并且将code放在会话域
+     */
+    @RequestMapping("/sendCode/{phone}")
+    public Result sendCode(@PathVariable String phone, HttpSession session){
+        //真实环境就是一个4位或者6位的随机数
+        //如果是真实环境，需要将code发送到用户的手机上，并且将code放在会话域(后续验证验证码是否正确)
+        String code="8888";
+        //现在是模拟，将code响应给前台，还是将验证码放在会话域
+        session.setAttribute("code",code);
+        return Result.ok(code);
+    }
+
+}
+```
+
+
+
+### 8.1.3注册用户操作
+
+#### 8.1.3.1后端serviceAPI
+
+UserInfoService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.UserInfo;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.UserInfoService
+ */
+public interface UserInfoService extends BaseService<UserInfo> {
+
+    /**
+     * 通过手机号码获取用户的详细信息，注册操作中判断手机号是否重复
+     */
+    UserInfo findUserInfoByPhone(String phone);
+}
+```
+
+
+
+#### 8.1.3.2后端dao层
+
+UserInfoDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.UserInfo;
+
+
+public interface UserInfoDao extends BaseDao<UserInfo>{
+
+    /**
+     * 通过手机号码获取用户的详细信息，注册操作中判断手机号是否重复
+     */
+    UserInfo findUserInfoByPhone(String phone);
+
+}
+```
+
+UserInfoMapper
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.UserInfoDao">
+
+    <!--通过手机号码获取用户的详细信息，注册操作中判断手机号是否重复-->
+    <select id="findUserInfoByPhone" resultType="userInfo">
+        select * from user_info where phone=#{phone} and is_deleted=0
+    </select>
+
+    <!--新增一个实例-->
+    <insert id="insert">
+        insert into user_info(phone,nick_name,status,password)
+        values(#{phone},#{nickName},#{status},#{password})
+    </insert>
+
+</mapper>
+```
+
+
+
+#### 8.1.3.3后端service层
+
+UserInfoServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.dao.UserInfoDao;
+import com.atguigu.entity.UserInfo;
+import com.atguigu.service.UserInfoService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+
+
+@DubboService
+public class UserInfoServiceImpl extends BaseServiceImpl<UserInfo> implements UserInfoService {
+
+    @Autowired
+    private UserInfoDao userInfoDao;
+
+    @Override
+    public BaseDao<UserInfo> getEntityDao() {
+        return userInfoDao;
+    }
+
+    /**
+     * 通过手机号码获取用户的详细信息，注册操作中判断手机号是否重复
+     */
+    @Override
+    public UserInfo findUserInfoByPhone(String phone) {
+        return userInfoDao.findUserInfoByPhone(phone);
+    }
+
+}
+```
+
+
+
+#### 8.1.3.4后端controller层
+
+UserInfoController添加内容
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.UserInfo;
+import com.atguigu.result.Result;
+import com.atguigu.result.ResultCodeEnum;
+import com.atguigu.service.UserInfoService;
+import com.atguigu.util.MD5;
+import com.atguigu.vo.RegisterVo;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import javax.servlet.http.HttpSession;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.UserInfoController
+ */
+@Controller
+@RequestMapping("/userInfo")
+@ResponseBody
+public class UserInfoController {
+
+    @DubboReference
+    private UserInfoService userInfoService;
+
+    /**
+     * 处理/sendCode/phone路径，用户输入手机号后获取验证码的请求
+     * 此处模拟8888验证码返回给用户， 正常情况下应该以短信的形式，并且将code放在会话域
+     */
+    @RequestMapping("/sendCode/{phone}")
+    public Result sendCode(@PathVariable String phone, HttpSession session){
+        //真实环境就是一个4位或者6位的随机数
+        //如果是真实环境，需要将code发送到用户的手机上，并且将code放在会话域(后续验证验证码是否正确)
+        String code="8888";
+        //现在是模拟，将code响应给前台，还是将验证码放在会话域
+        session.setAttribute("code",code);
+        return Result.ok(code);
+    }
+
+
+    /**
+     * 处理/register路径，用户注册操作
+     * registerVo请求参数包裹着注册所需的全部信息
+     */
+    @RequestMapping("/register")
+    public Result register(@RequestBody RegisterVo registerVo, HttpSession session){
+        //1. 获取到注册的数据(code/手机号/密码/昵称)
+        String code = registerVo.getCode();
+        String phone = registerVo.getPhone();
+        String password = registerVo.getPassword();
+        String nickName = registerVo.getNickName();
+        //2. 校验参数是否为空
+        if(StringUtils.isEmpty(code)||StringUtils.isEmpty(phone)||StringUtils.isEmpty(password)||StringUtils.isEmpty(nickName)){
+            //若有空参数，直接给前台一个参数错误203响应
+            return Result.build(null, ResultCodeEnum.PARAM_ERROR);
+        }
+        //3. 校验验证码是否正确
+        Object trueCode = session.getAttribute("code");
+        if(!trueCode.equals(code)){
+            return Result.build(null,ResultCodeEnum.CODE_ERROR);
+        }
+        //4. 校验手机号是否重复(根据phone，去数据库做二次查询)
+        UserInfo userInfo = userInfoService.findUserInfoByPhone(phone);
+        if(userInfo!=null){
+            //若不为空，则查询到了实例对象，说明手机号已被使用
+            return Result.build(null,ResultCodeEnum.PHONE_REGISTER_ERROR);
+        }
+
+        //5. 将数据保存到数据库即可
+        UserInfo info=new UserInfo();
+        info.setPhone(phone);
+        info.setNickName(nickName);
+        //使用MD5对密码进行加密
+        info.setPassword(MD5.encrypt(password));
+        //status不设置也行，因为默认值为1。1表示该用户锁定，0表示该用户正常
+        info.setStatus(1);
+
+        //新增操作
+        userInfoService.insert(info);
+
+        return Result.ok();
+    }
+
+}
+```
+
+·
+
+#### 8.1.3.5创建登录页面
+
+在webapp下创建login.html文件，先不添加任何内容，作为注册成功后的跳转页面
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>登录页面</title>
+</head>
+<body>
+<h1>登录页面</h1>
+</body>
+</html>
+```
+
+
+
+## 8.2登录
+
+### 8.2.1准备前端资源
+
+#### 8.2.1.1修改login页面
+
+```html
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta name="Author" contect="http://www.webqin.net">
+    <title>尚好房</title>
+    <link rel="shortcut icon" href="/static/images/favicon.ico"/>
+    <link type="text/css" href="/static/css/css.css" rel="stylesheet"/>
+    <script type="text/javascript" src="/static/js/jquery.js"></script>
+    <script type="text/javascript" src="/static/js/js.js"></script>
+    <script src="/static/js/vue.js"></script>
+    <script src="/static/js/axios.js"></script>
+    <script src="/static/js/util.js"></script>
+    <script type="text/javascript">
+        $(function () {
+            //导航定位
+            $(".nav li:eq(6)").addClass("navCur");
+        })
+    </script>
+</head>
+
+<body>
+<div id="login">
+    <div class="header">
+        <div class="width1190">
+            <div class="fl">您好，欢迎来到尚好房！</div>
+            <!--判断用户未登录显示的样式-->
+            <div class="fr" v-if="userInfo.nickName==''">
+                <a href="login.html">登录</a> |
+                <a href="register.html">注册</a> |
+                <a href="javascript:;">加入收藏</a> |
+                <a href="javascript:;">设为首页</a>
+            </div>
+            <!--判断用户登录后显示的样式-->
+            <div class="fr" v-else>
+                <a href="javascript:;">欢迎 {{ userInfo.nickName }}</a> |
+                <a href="javascript:;" @click="logout">退出</a> |
+                <a href="follow.html">我的关注</a> |
+                <a href="javascript:;">加入收藏</a> |
+                <a href="javascript:;">设为首页</a>
+            </div>
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div>
+    <div class="list-nav">
+        <div class="width1190">
+            <div class="list"><h3>房源分类</h3></div><!--list/-->
+            <ul class="nav">
+                <li><a href="index.html">首页</a></li>
+                <li><a href="about.html">关于我们</a></li>
+                <li><a href="contact.html">联系我们</a></li>
+                <div class="clears"></div>
+            </ul><!--nav/-->
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div><!--list-nav/-->
+    <div class="banner" style="background:url(/static/images/ban.jpg) center center no-repeat;"></div>
+
+    <div class="content">
+        <div class="width1190">
+            <div class="reg-logo">
+                <form id="signupForm" method="post" action="follow.html" class="zcform">
+                    <p class="clearfix">
+                        <label class="one" for="agent">用户名：</label>
+                        <input id="agent" v-model="loginVo.phone" type="text" class="required" value placeholder="请输入您的用户名"/>
+                    </p>
+                    <p class="clearfix">
+                        <span style="color: red;margin-left: 90px;">{{valid.phone}}</span>
+                    </p>
+                    <p class="clearfix">
+                        <label class="one" for="password">登录密码：</label>
+                        <input id="password" v-model="loginVo.password" type="password"
+                               class="{required:true,rangelength:[8,20],}" value placeholder="请输入密码"/>
+                    </p>
+                    <p class="clearfix">
+                        <span style="color: red;margin-left: 90px;">{{valid.password}}</span>
+                    </p>
+                    <!--<p class="clearfix agreement">
+                        <input type="checkbox" />
+                        <b class="left">已阅读并同意<a href="#">《用户协议》</a></b>
+                    </p>-->
+                    <p class="clearfix"><input class="submit" type="button" @click="submitLogin()" value="立即登录"/></p>
+                </form>
+                <div class="reg-logo-right">
+                    <h3>如果您没有账号，请</h3>
+                    <a href="register.html" class="logo-a">立即注册</a>
+                </div><!--reg-logo-right/-->
+                <div class="clears"></div>
+            </div><!--reg-logo/-->
+        </div><!--width1190/-->
+    </div><!--content/-->
+
+    <div class="footer">
+        <div class="width1190">
+            <div class="fl"><a href="index.html"><strong>尚好房</strong></a><a href="about.html">关于我们</a><a
+                    href="contact.html">联系我们</a><a href="follow.html">个人中心</a></div>
+            <div class="fr">
+                <dl>
+                    <dt><img src="/static/images/erweima.png" width="76" height="76"/></dt>
+                    <dd>微信扫一扫<br/>房价点评，精彩发布</dd>
+                </dl>
+                <dl>
+                    <dt><img src="/static/images/erweima.png" width="76" height="76"/></dt>
+                    <dd>微信扫一扫<br/>房价点评，精彩发布</dd>
+                </dl>
+                <div class="clears"></div>
+            </div>
+            <div class="clears"></div>
+        </div><!--width1190/-->
+    </div><!--footer/-->
+    <div class="copy">Copyright@ 2020 尚好房 版权所有 沪ICP备1234567号-0&nbsp;&nbsp;&nbsp;&nbsp;技术支持：XXX</div>
+    <div class="bg100"></div>
+</div>
+<script>
+    var app =new Vue({
+        el: '#login',
+
+        data: {
+            //存储登录请求中的用户信息
+            loginVo: {
+                phone: '',
+                password: ''
+            },
+
+            //存储登录成功后的用户信息
+            valid: {
+                phone: '',
+                password: ''
+            },
+
+            //存储从localStorage获取的登录的用户信息
+            userInfo:{
+                nickName:''
+            },
+        },
+
+        created(){
+            this.login()
+        },
+        methods: {
+            login(){
+                var userInfoString = window.localStorage.getItem("userInfo")
+                if(userInfoString != null && userInfoString != '') {
+                    this.userInfo = JSON.parse(userInfoString)
+                }
+            },
+            logout() {
+                axios.get('/userInfo/logout').then(function (response) {
+                    window.localStorage.setItem("userInfo", '')
+                    window.location.href = 'index.html'
+                });
+            },
+            submitLogin() {
+                var isValid = true
+                if(this.loginVo.phone == '') {
+                    this.valid.password = '用户名必须输入';
+                    isValid = false
+                }
+                if(this.loginVo.password == '') {
+                    this.valid.password = '密码必须输入';
+                    isValid = false
+                }
+                if(!isValid) {
+                    return
+                }
+                var that = this
+                //异步登录请求，若登录成功将返回的信息保存在本地localStorage中
+                axios.post('/userInfo/login', this.loginVo).then(function (response) {
+                    //判断响应信息的状态码是否为200
+                    if(response.data.code == 200){
+                        //将请求返回的登录信息保存到的浏览器本地，以键值对的形式存储
+                        window.localStorage.setItem("userInfo", JSON.stringify(response.data.data))
+
+                        //获取登录前的页面面，即从哪个页面点的登录
+                        var originUrl = util.getOriginUrl()
+                        if(originUrl != '') {
+                            //若获取到登录前的页面，就跳转到该页面
+                            window.location.href = originUrl
+                        } else {
+                            //若没有获取到，就去到首页
+                            window.location.href = "index.html"
+                        }
+                    }else{
+                        //如果状态码不等于200，就弹出错误提示
+                        alert(response.data.message);
+                    }
+                });
+            }
+        }
+    })
+</script>
+</body>
+</html>
+```
+
+
+
+#### 8.2.1.2修改index页面
+
+根据判断是否登录修改顶部样式
+
+```html
+<div class="width1190">
+    <div class="fl">您好，欢迎来到尚好房！</div>
+    <!--判断用户未登录显示的样式-->
+    <div class="fr" v-if="userInfo.nickName==''">
+        <a href="login.html">登录</a> |
+        <a href="register.html">注册</a> |
+        <a href="javascript:;">加入收藏</a> |
+        <a href="javascript:;">设为首页</a>
+    </div>
+    <!--判断用户登录后显示的样式-->
+    <div class="fr" v-else>
+        <a href="javascript:;">欢迎 {{ userInfo.nickName }}</a> |
+        <a href="javascript:;" @click="logout">退出</a> |
+        <a href="follow.html">我的关注</a> |
+        <a href="javascript:;">加入收藏</a> |
+        <a href="javascript:;">设为首页</a>
+    </div>
+    <div class="clears"></div>
+</div><!--width1190/-->
+```
+
+添加Vue对象中的data数据、created钩子函数和methods方法
+
+```javascript
+new Vue({
+  el: '#list',
+  data: {
+    areaList: [],
+    plateList: [],
+    houseTypeList: [],
+    floorList: [],
+    buildStructureList: [],
+    directionList: [],
+    decorationList: [],
+    houseUseList: [],
+
+    //接口当前页的数据，存储分页信息
+    page: {
+      list: [],
+      pageNum: 1,
+      pageSize: 2, //方便测试分页
+      pages: 1,
+      //导航页码
+      navigatepageNums: [1, 2, 3, 4],
+      //上一页
+      prePage: 0,
+      //下一页
+      nextPage: 0,
+      //是否为首页
+      hasPreviousPage: false,
+      //是否为尾页
+      hasNextPage: false
+    },
+
+    //存储查询条件的Json对象，存储用户点击的搜索项⚠️
+    //该Json对象会传到后端dao层，dao层判断是否为空串进行拼接查询条件
+    houseQueryVo: {
+      areaId: '',
+      plateId: '',
+      houseTypeId: '',
+      floorId: '',
+      buildStructureId: '',
+      directionId: '',
+      decorationId: '',
+      houseUseId: '',
+      //排序规则相关属性
+      defaultSort: 1,
+      priceSort: null,
+      timeSort: null,
+    },
+
+    //存储从localStorage获取的登录的用户信息
+    userInfo:{
+      nickName:''
+    },
+  },
+  created() {
+    //异步获取页面所以搜索项数据
+    this.fetchDictData()
+    //默认刚进入页码显示全部房源，发起一次异步请求
+    this.fetchData(1)
+    //默认进入页面检验是否已登录
+    this.login();
+  },
+  methods: {
+    //检验是否登录，去.localStorage获取登录信息，若有登录信息就赋给data中的userInfo对象
+    login(){
+      var userInfoString = window.localStorage.getItem("userInfo")
+      if(userInfoString != null && userInfoString != '') {
+        this.userInfo = JSON.parse(userInfoString)
+      }
+    },
+    //登出当前用户，从localStorage移除登录信息，并跳转到首页
+    logout() {
+      axios.get('/userInfo/logout').then(function (response) {
+        //移除掉本地的userInfo数据
+        window.localStorage.setItem("userInfo", '')
+        //并且回到首页
+        window.location.href = 'index.html'
+      });
+    },
+    fetchDictData() {
+      //axios在then的内部不能使用Vue的实例化的this, 因为在内部 this 没有被绑定
+      var that = this
+      axios.get('/dict/findListByDictCode/beijing').then(function (response) {
+        that.areaList = response.data.data
+      });
+      axios.get('/dict/findListByDictCode/houseType').then(function (response) {
+        that.houseTypeList = response.data.data
+      });
+      axios.get('/dict/findListByDictCode/floor').then(function (response) {
+        that.floorList = response.data.data
+      });
+      axios.get('/dict/findListByDictCode/buildStructure').then(function (response) {
+        that.buildStructureList = response.data.data
+      });
+      axios.get('/dict/findListByDictCode/direction').then(function (response) {
+        that.directionList = response.data.data
+      });
+      axios.get('/dict/findListByDictCode/decoration').then(function (response) {
+        that.decorationList = response.data.data
+      });
+      axios.get('/dict/findListByDictCode/houseUse').then(function (response) {
+        that.houseUseList = response.data.data
+      });
+    },
+
+    //房源区域的二级搜索
+    searchArea(id) {
+      this.houseQueryVo.areaId = id
+      this.houseQueryVo.plateId = ''
+      this.fetchData(1)
+
+      //如果点击的是不限，则进入到if内，不再发请求，直接return
+      if (id == '') {
+        this.plateList = []
+        return
+      }
+      var that = this
+      axios.get('/dict/findListByParentId/' + id).then(function (response) {
+        that.plateList = response.data.data
+      });
+    },
+
+    //存储查询条件值，用户点击的搜索项触发的方法
+    searchPlate(id) {
+      this.houseQueryVo.plateId = id
+      this.fetchData(1)
+    },
+    searchHouseType(id) {
+      this.houseQueryVo.houseTypeId = id
+      this.fetchData(1)
+    },
+    searchFloor(id) {
+      this.houseQueryVo.floorId = id
+      this.fetchData(1)
+    },
+    searchBuildStructure(id) {
+      this.houseQueryVo.buildStructureId = id
+      this.fetchData(1)
+    },
+    searchDirection(id) {
+      this.houseQueryVo.directionId = id
+      this.fetchData(1)
+    },
+    searchDecoration(id) {
+      this.houseQueryVo.decorationId = id
+      this.fetchData(1)
+    },
+    searchHouseUse(id) {
+      this.houseQueryVo.houseUseId = id
+      this.fetchData(1)
+    },
+
+    //用户选择的排序规则：默认/单价/时间
+    sortDefault() {
+      this.houseQueryVo.defaultSort = 1
+      this.houseQueryVo.priceSort = null
+      this.houseQueryVo.timeSort = null
+      this.fetchData(1)
+    },
+    sortPrice() {
+      this.houseQueryVo.defaultSort = null
+      this.houseQueryVo.priceSort = 1
+      this.houseQueryVo.timeSort = null
+      this.fetchData(1)
+    },
+    sortTime() {
+      this.houseQueryVo.defaultSort = null
+      this.houseQueryVo.priceSort = null
+      this.houseQueryVo.timeSort = 1
+      this.fetchData(1)
+    },
+
+    //无论点击哪个搜索项，都会调用该方法向后端发起异步查询请求⚠️
+    //houseQueryVo对象是搜索条件对象以及分页信息
+    fetchData(pageNum = 1) {
+      this.page.pageNum = pageNum
+      if (pageNum < 1) pageNum = 1
+      //axios在then的内部不能使用Vue的实例化的this, 因为在内部 this 没有被绑定
+      var that = this
+      axios.post('/house/list/' + pageNum + '/' + this.page.pageSize, this.houseQueryVo).then(function (response) {
+        //后端返回的pageInfo对象，包含着全部的渲染列表信息及分页信息，赋值给Vue的page对象，通过page渲染数据⚠️
+        that.page = response.data.data
+      });
+    },
+  }
+})
+```
+
+
+
+#### 8.2.1.3修改register页面
+
+根据判断是否登录修改顶部样式
+
+```html
+<div class="width1190">
+    <div class="fl">您好，欢迎来到尚好房！</div>
+    <!--判断用户未登录显示的样式-->
+    <div class="fr" v-if="userInfo.nickName==''">
+        <a href="login.html">登录</a> |
+        <a href="register.html">注册</a> |
+        <a href="javascript:;">加入收藏</a> |
+        <a href="javascript:;">设为首页</a>
+    </div>
+    <!--判断用户登录后显示的样式-->
+    <div class="fr" v-else>
+        <a href="javascript:;">欢迎 {{ userInfo.nickName }}</a> |
+        <a href="javascript:;" @click="logout">退出</a> |
+        <a href="follow.html">我的关注</a> |
+        <a href="javascript:;">加入收藏</a> |
+        <a href="javascript:;">设为首页</a>
+    </div>
+    <div class="clears"></div>
+</div><!--width1190/-->
+```
+
+添加Vue对象中的data数据、created钩子函数和methods方法
+
+```javascript
+var app =new Vue({
+  el: '#register',
+
+  data: {
+    //包含着注册信息的对象，发起异步注册请求时主要传递该对象
+    registerVo: {
+      phone: '',
+      password: '',
+      confirmPassword: '',
+      nickName: '',
+      code: ''
+    },
+
+    valid: {
+      phone: '',
+      password: '',
+      confirmPassword: '',
+      nickName: '',
+      code: ''
+    },
+
+    sending: true,     //是否发送验证码
+    second: 60,        //倒计时间
+    codeTest: '获取验证码',
+
+    //存储从localStorage获取的登录的用户信息
+    userInfo: {
+      nickName: ''
+    },
+  },
+
+  created() {
+    //默认进入页面检验是否已登录
+    this.login();
+  },
+
+  methods: {
+    //检验是否登录，去.localStorage获取登录信息，若有登录信息就赋给data中的userInfo对象
+    login() {
+      var userInfoString = window.localStorage.getItem("userInfo")
+      if (userInfoString != null && userInfoString != '') {
+        this.userInfo = JSON.parse(userInfoString)
+      }
+    },
+    //登出当前用户，从localStorage移除登录信息，并跳转到首页
+    logout() {
+      axios.get('/userInfo/logout').then(function (response) {
+        //移除掉本地的userInfo数据
+        window.localStorage.setItem("userInfo", '')
+        //并且回到首页
+        window.location.href = 'index.html'
+      });
+    },
+    submitRegister() {
+      var isValid = true
+      if(!(/^1[3456789]\d{9}$/.test(this.registerVo.phone))) {
+        this.valid.phone = '手机号码不正确'
+        isValid = false
+      }
+      if(this.registerVo.code == '') {
+        this.valid.code = '验证码必须输入';
+        isValid = false
+      }
+      if(this.registerVo.password == '') {
+        this.valid.password = '密码必须输入';
+        isValid = false
+      }
+      if(this.registerVo.password != this.registerVo.confirmPassword) {
+        this.valid.confirmPassword = '密码不一致';
+        isValid = false
+      }
+      if(this.registerVo.nickName == '') {
+        this.valid.nickName = '昵称必须输入';
+        isValid = false
+      }
+      if(!isValid) {
+        return
+      }
+      var that = this
+      axios.post('/userInfo/register', this.registerVo).then(function (response) {
+        if(response.data.code == 200){
+          window.location.href = 'login.html'
+        }else{
+          alert(response.data.message);
+        }
+      });
+
+    },
+
+    getCodeFun() {
+      if (!this.sending)
+        return;
+
+      if (!(/^1[3456789]\d{9}$/.test(this.registerVo.phone))) {
+        alert('手机号码不正确');
+        return;
+      }
+
+      var that = this
+      axios.get('/userInfo/sendCode/'+this.registerVo.phone).then(function (response) {
+        that.sending = false;
+
+        //为验证码赋值，实际开发环境中是用户查看短信，手动输入验证码⚠️
+        that.registerVo.code = response.data.data
+        that.timeDown();
+      });
+    },
+
+    timeDown() {
+      let result = setInterval(() => {
+        --this.second;
+        this.codeTest = this.second
+        if (this.second < 1) {
+          clearInterval(result);
+          this.sending = true;
+          this.second = 60;
+          this.codeTest = "获取验证码"
+        }
+      }, 1000);
+    }
+  }
+})
+```
+
+
+
+#### 8.2.1.2修改info页面
+
+根据判断是否登录修改顶部样式
+
+```html
+<div class="width1190">
+    <div class="fl">您好，欢迎来到尚好房！</div>
+    <!--判断用户未登录显示的样式-->
+    <div class="fr" v-if="userInfo.nickName==''">
+        <a href="login.html">登录</a> |
+        <a href="register.html">注册</a> |
+        <a href="javascript:;">加入收藏</a> |
+        <a href="javascript:;">设为首页</a>
+    </div>
+    <!--判断用户登录后显示的样式-->
+    <div class="fr" v-else>
+        <a href="javascript:;">欢迎 {{ userInfo.nickName }}</a> |
+        <a href="javascript:;" @click="logout">退出</a> |
+        <a href="follow.html">我的关注</a> |
+        <a href="javascript:;">加入收藏</a> |
+        <a href="javascript:;">设为首页</a>
+    </div>
+    <div class="clears"></div>
+</div><!--width1190/-->
+```
+
+添加Vue对象中的data数据、created钩子函数和methods方法
+
+```javascript
+new Vue({
+  el: '#item',
+  data: {
+    id: null,
+    house: {},
+    community: {},
+    houseBroker: {},
+    houseImage1List: [],
+    //是否已关注该房源
+    isFollow: false,
+
+    //轮播图的图片是否加载完成
+    isLoad: false,
+
+    //存储从localStorage获取的登录的用户信息
+    userInfo: {
+      nickName: ''
+    },
+  },
+  created() {
+    //发起异步请求，获取当前房源的详细信息并渲染
+    this.init()
+    //默认进入页面检验是否已登录
+    this.login();
+  },
+  mounted() {
+    const timer = setInterval(() => {
+      // 图片加载成功，再去初始化轮播图
+      if (this.isLoad) {
+        this.runSwiper()
+        clearInterval(timer);
+      }
+    }, 500);
+  },
+  methods: {
+    //检验是否登录，去.localStorage获取登录信息，若有登录信息就赋给data中的userInfo对象
+    login() {
+      var userInfoString = window.localStorage.getItem("userInfo")
+      if (userInfoString != null && userInfoString != '') {
+        this.userInfo = JSON.parse(userInfoString)
+      }
+    },
+    //登出当前用户，从localStorage移除登录信息，并跳转到首页
+    logout() {
+      axios.get('/userInfo/logout').then(function (response) {
+        //移除掉本地的userInfo数据
+        window.localStorage.setItem("userInfo", '')
+        //并且回到首页
+        window.location.href = 'index.html'
+      });
+    },
+    runSwiper() {
+      var swiper = new Swiper(".mySwiper", {
+        spaceBetween: 10,
+        slidesPerView: 4,
+        freeMode: true,
+        watchSlidesProgress: true
+      })
+      new Swiper(".mySwiper2", {
+        spaceBetween: 10,
+        navigation: {
+          nextEl: ".swiper-button-next",
+          prevEl: ".swiper-button-prev"
+        },
+        thumbs: {
+          swiper: swiper
+        }
+      })
+    },
+    init() {
+      //获取到当前房源的id值
+      this.id = util.getQueryVariable("id")
+      this.fetchData()
+    },
+    //查询当前房源详细信息
+    fetchData() {
+      var that = this
+      //发送异步请求到后台，需要服务器查询出，当前房源数据，小区数据，经纪人数据，房源图片，是否关注(写死未关注)
+      axios.get('/house/info/' + this.id).then(function (response) {
+        that.house = response.data.data.house
+        that.community = response.data.data.community
+        that.houseBroker = response.data.data.houseBrokerList.length > 0 ? response.data.data.houseBrokerList[0] : '',
+          that.houseImage1List = response.data.data.houseImage1List
+        that.isFollow = response.data.data.isFollow
+        that.isLoad = true
+      });
+    }
+  }
+})
+```
+
+
+
+### 8.2.2准备后端接口
+
+UserInfoController添加内容
+
+```java
+/**
+ * 处理/login路径，用户登录操作
+ * 先校验，通过校验后再将信息放到会话域一份，并返回给前端一份
+ */
+@RequestMapping("/login")
+public Result login(@RequestBody LoginVo loginVo, HttpSession session){
+    //1. 获取前端请求参数，手机号和密码
+    String phone = loginVo.getPhone();
+    String password = loginVo.getPassword();//password是明文
+    //2. 前端请求参数的非空校验
+    if(StringUtils.isEmpty(phone)||StringUtils.isEmpty(password)){
+        return Result.build(null,ResultCodeEnum.PARAM_ERROR);
+    }
+    //3. 验证用户名是否正确(根据phone去查询UserInfo对象)
+    UserInfo userInfo = userInfoService.findUserInfoByPhone(phone);
+    if(userInfo==null){
+        return Result.build(null,ResultCodeEnum.ACCOUNT_ERROR);
+    }
+    //4. 验证登录密码是否正确，注册时使用MD5加密，相同的明文多次加密的结果是一样的
+    //还有其他加密方式，这里必须根据注册时的加密方式来编写对应的校验方式
+    if(!userInfo.getPassword().equals(MD5.encrypt(password))){
+        //返回密码不正确的相关验证码和信息
+        return Result.build(null,ResultCodeEnum.PASSWORD_ERROR);
+    }
+    //5. 验证用户是否被锁定(status是否是1)
+    if(userInfo.getStatus()==0){
+        //返回用户锁定的相关验证码和信息
+        return Result.build(null,ResultCodeEnum.ACCOUNT_LOCK_ERROR);
+    }
+    //6. 将当前登录人信息保存在会话域
+    session.setAttribute("userInfo",userInfo);
+
+    //7. 将用户信息(手机号、昵称)响应给前端
+    Map<String,Object> map=new HashMap<>();
+    map.put("phone",phone);
+    map.put("nickName",userInfo.getNickName());
+
+    return Result.ok(map);//这里返回200的响应
+}
+
+
+/**
+ * 处理/logout路径，用户登出请求
+ */
+@RequestMapping("/logout")
+public Result logout(HttpSession session){
+    //从会话域中删除用户信息
+    session.removeAttribute("userInfo");
+    return Result.ok();
+}
+```
+
+
+
+## 

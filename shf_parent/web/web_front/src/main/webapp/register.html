@@ -24,9 +24,18 @@
     <div class="header">
         <div class="width1190">
             <div class="fl">您好，欢迎来到尚好房！</div>
-            <div class="fr">
+            <!--判断用户未登录显示的样式-->
+            <div class="fr" v-if="userInfo.nickName==''">
                 <a href="login.html">登录</a> |
                 <a href="register.html">注册</a> |
+                <a href="javascript:;">加入收藏</a> |
+                <a href="javascript:;">设为首页</a>
+            </div>
+            <!--判断用户登录后显示的样式-->
+            <div class="fr" v-else>
+                <a href="javascript:;">欢迎 {{ userInfo.nickName }}</a> |
+                <a href="javascript:;" @click="logout">退出</a> |
+                <a href="follow.html">我的关注</a> |
                 <a href="javascript:;">加入收藏</a> |
                 <a href="javascript:;">设为首页</a>
             </div>
@@ -149,13 +158,36 @@
 
             sending: true,     //是否发送验证码
             second: 60,        //倒计时间
-            codeTest: '获取验证码'
+            codeTest: '获取验证码',
+
+            //存储从localStorage获取的登录的用户信息
+            userInfo: {
+                nickName: ''
+            },
         },
 
-        mounted () {
+        created() {
+            //默认进入页面检验是否已登录
+            this.login();
         },
 
         methods: {
+            //检验是否登录，去.localStorage获取登录信息，若有登录信息就赋给data中的userInfo对象
+            login() {
+                var userInfoString = window.localStorage.getItem("userInfo")
+                if (userInfoString != null && userInfoString != '') {
+                    this.userInfo = JSON.parse(userInfoString)
+                }
+            },
+            //登出当前用户，从localStorage移除登录信息，并跳转到首页
+            logout() {
+                axios.get('/userInfo/logout').then(function (response) {
+                    //移除掉本地的userInfo数据
+                    window.localStorage.setItem("userInfo", '')
+                    //并且回到首页
+                    window.location.href = 'index.html'
+                });
+            },
             submitRegister() {
                 var isValid = true
                 if(!(/^1[3456789]\d{9}$/.test(this.registerVo.phone))) {
@@ -204,7 +236,8 @@
                 var that = this
                 axios.get('/userInfo/sendCode/'+this.registerVo.phone).then(function (response) {
                     that.sending = false;
-                    //按照常理这一步没有，是用户查看短信，手动将验证码输入到文本框
+
+                    //为验证码赋值，实际开发环境中是用户查看短信，手动输入验证码⚠️
                     that.registerVo.code = response.data.data
                     that.timeDown();
                 });
