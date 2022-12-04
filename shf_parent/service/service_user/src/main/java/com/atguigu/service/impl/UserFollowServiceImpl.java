@@ -63,6 +63,7 @@ public class UserFollowServiceImpl extends BaseServiceImpl<UserFollow> implement
             //1. 在dao层中重写DictDao（代码重复，不推荐）
             //2. 直接调用ServiceAPI，即消费DictService服务，使用其方法，使当前服务即是提供者又是消费者⚠️
             //service_user不仅仅是提供者，还是一个消费者(允许的)
+            //必须配置问价内加上不需要检查服务提供者启动，不然每次必须先启动自己依赖的服务提供者！⚠️
             userFollowVo.setHouseTypeName(dictService.getNameById(userFollowVo.getHouseTypeId()));
             userFollowVo.setFloorName(dictService.getNameById(userFollowVo.getFloorId()));
             userFollowVo.setDirectionName(dictService.getNameById(userFollowVo.getDirectionId()));

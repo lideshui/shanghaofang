@@ -10,8 +10,14 @@
     <dubbo:protocol name="dubbo" port="20883"/>
 
     <!--指定服务注册中心地址-->
-    <dubbo:registry address="zookeeper://localhost:2181"/>
+    <!--<dubbo:registry address="zookeeper://localhost:2181"/>-->
+
+    <!--指定服务注册中心地址-云服务器的注册中心-->
+    <dubbo:registry address="zookeeper://39.106.35.112:2181"/>
 
     <!--批量扫描，发布服务-->
     <dubbo:annotation package="com.atguigu"/>
+
+    <!--启动时候不检查 设置连接超时时间-->
+    <dubbo:consumer check="false" timeout="600000"></dubbo:consumer>
 </beans>
