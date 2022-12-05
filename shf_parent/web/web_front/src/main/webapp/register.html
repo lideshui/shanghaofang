@@ -70,14 +70,14 @@
                     </p>
                     <p class="clearfix">
                         <label class="one" for="agent">验证码：</label>
-                        <input id="agent" v-model="registerVo.code" type="text" class="required" maxlength="4" value placeholder="请输入手机验证码"/>
+                        <input id="agent" v-model="registerVo.code" type="text" class="required" maxlength="6" value placeholder="请输入手机验证码"/>
                     </p>
                     <p class="clearfix">
                         <span style="color: red;margin-left: 90px;">{{valid.code}}</span>
                     </p>
                     <p class="clearfix">
                         <label class="one" for="password">登录密码：</label>
-                        <input id="password" v-model="registerVo.password" type="password" maxlength="9"
+                        <input id="password" v-model="registerVo.password" type="password" maxlength="16"
                                class="{required:true,rangelength:[8,20],}" value placeholder="请输入密码"/>
                     </p>
                     <p class="clearfix">
@@ -85,7 +85,7 @@
                     </p>
                     <p class="clearfix">
                         <label class="one" for="confirm_password">确认密码：</label>
-                        <input id="confirm_password" v-model="registerVo.confirmPassword"  type="password" maxlength="9"
+                        <input id="confirm_password" v-model="registerVo.confirmPassword"  type="password" maxlength="16"
                                class="{required:true,equalTo:'#password'}" value placeholder="请再次输入密码"/>
                     </p>
                     <p class="clearfix">
@@ -235,10 +235,10 @@
 
                 var that = this
                 axios.get('/userInfo/sendCode/'+this.registerVo.phone).then(function (response) {
+                    if(response.data.data){
+                        that.second = response.data.data;
+                    }
                     that.sending = false;
-
-                    //为验证码赋值，实际开发环境中是用户查看短信，手动输入验证码⚠️
-                    that.registerVo.code = response.data.data
                     that.timeDown();
                 });
             },

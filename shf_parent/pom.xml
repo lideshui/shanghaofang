@@ -36,6 +36,8 @@
         <logback-version>1.2.3</logback-version>
         <dubbo.version>3.0.8</dubbo.version>
         <qiniuyun.version>7.7.0</qiniuyun.version>
+        <aliyun.version>2.0.22</aliyun.version>
+        <jedis.version>2.9.0</jedis.version>
     </properties>
 
     <!--依赖管理，子类可按需引用继承-->
@@ -152,6 +154,20 @@
                 <groupId>com.qiniu</groupId>
                 <artifactId>qiniu-java-sdk</artifactId>
                 <version>${qiniuyun.version}</version>
+            </dependency>
+
+            <!--阿里云短信服务-->
+            <dependency>
+                <groupId>com.aliyun</groupId>
+                <artifactId>alibabacloud-dysmsapi20170525</artifactId>
+                <version>${aliyun.version}</version>
+            </dependency>
+
+            <!--Redis-->
+            <dependency>
+                <groupId>redis.clients</groupId>
+                <artifactId>jedis</artifactId>
+                <version>${jedis.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

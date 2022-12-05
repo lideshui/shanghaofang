@@ -13864,6 +13864,392 @@ public Result cancelFollow(@PathVariable Long userFollowId){
 
 
 
+## 8.6使用阿里云短信服务
+
+### 8.6.1导入相关依赖
+
+父工程shf_parent
+
+```xml
+<aliyun.version>2.0.22</aliyun.version>
+<jedis.version>2.9.0</jedis.version>
+```
+
+```xml
+<!--阿里云短信服务-->
+<dependency>
+    <groupId>com.aliyun</groupId>
+    <artifactId>alibabacloud-dysmsapi20170525</artifactId>
+    <version>${aliyun.version}</version>
+</dependency>
+
+<!--Redis-->
+<dependency>
+    <groupId>redis.clients</groupId>
+    <artifactId>jedis</artifactId>
+    <version>${jedis.version}</version>
+</dependency>
+```
+
+子模块common_util
+
+```xml
+<!--阿里云短信-->
+<dependency>
+    <groupId>com.aliyun</groupId>
+    <artifactId>alibabacloud-dysmsapi20170525</artifactId>
+</dependency>
+
+<!--Redis-->
+<dependency>
+    <groupId>redis.clients</groupId>
+    <artifactId>jedis</artifactId>
+</dependency>
+```
+
+
+
+### 8.6.2封装阿里云工具类
+
+SendSms
+
+```java
+package com.atguigu.util;
+
+import com.aliyun.auth.credentials.Credential;
+import com.aliyun.auth.credentials.provider.StaticCredentialProvider;
+import com.aliyun.sdk.service.dysmsapi20170525.AsyncClient;
+import com.aliyun.sdk.service.dysmsapi20170525.models.SendSmsRequest;
+import com.aliyun.sdk.service.dysmsapi20170525.models.SendSmsResponse;
+import com.aliyun.sdk.service.dysmsapi20170525.models.SendSmsResponseBody;
+import darabonba.core.client.ClientOverrideConfiguration;
+import darabonba.core.exception.TeaException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.util.AliSmsUtil
+ */
+public class SendSms {
+
+    private static String accessKeyId = "LTAI5t9v9gFPqHrTtTbwGQux";
+    private static String accessKeySecret = "XLkWChxUC6xk2rtKG0ADV22LkUsot3";
+
+
+    public static Boolean sendSms(String phone, String code) {
+
+        // 配置凭据身份验证信息
+        StaticCredentialProvider provider = StaticCredentialProvider.create(Credential.builder().accessKeyId(accessKeyId).accessKeySecret(accessKeySecret).build());
+
+        // 配置阿里云客户端
+        AsyncClient client = AsyncClient.builder()
+                .region("cn-beijing").credentialsProvider(provider)
+                .overrideConfiguration(ClientOverrideConfiguration.create().setEndpointOverride("dysmsapi.aliyuncs.com"))
+                .build();
+
+        // API参数：签名名称、模板Code、手机号、验证码
+        SendSmsRequest sendSmsRequest = SendSmsRequest.builder()
+                .signName("李德水个人网站")
+                .templateCode("SMS_262450421")
+                .phoneNumbers(phone)
+                .templateParam("{\"code\":\"" + code + "\"}")
+                .build();
+
+        // 异步获取API请求的返回值
+        CompletableFuture<SendSmsResponse> response = client.sendSms(sendSmsRequest);
+
+        // 处理发送结果
+        try {
+            SendSmsResponseBody body = response.get().getBody();
+            Logger logger = LoggerFactory.getLogger(SendSms.class);
+            if (body.getCode().equals("OK")){
+                logger.info("用户验证码发送成功");
+                return true;
+            }else {
+                logger.error(body.getMessage());
+            }
+        } catch (TeaException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            // 关闭客户端
+            client.close();
+        }
+        return false;
+    }
+}
+
+```
+
+
+
+### 8.6.3封装Redis工具类
+
+JedisPoolUtil
+
+```java
+package com.atguigu.util;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.util.JedisPoolUtil
+ */
+
+
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
+
+public class JedisPoolUtil {
+    private static volatile JedisPool jedisPool = null;
+
+    private JedisPoolUtil() {
+    }
+
+    public static JedisPool getJedisPoolInstance() {
+        if (null == jedisPool) {
+            synchronized (JedisPoolUtil.class) {
+                if (null == jedisPool) {
+                    JedisPoolConfig poolConfig = new JedisPoolConfig();
+                    //最大连接数, 默认8个
+                    poolConfig.setMaxTotal(200);
+                    //最大空闲连接数,默认8个
+                    poolConfig.setMaxIdle(32);
+                    //获取连接时的最大等待毫秒数,如果超时就抛异常
+                    poolConfig.setMaxWaitMillis(100 * 1000);
+                    //连接超时时是否阻塞，false时报异常,ture阻塞直到超时, 默认true
+                    poolConfig.setBlockWhenExhausted(true);
+
+                    //测试ping pong
+                    poolConfig.setTestOnBorrow(true);
+
+                    //传入Redis数据库信息，包括ip、端口、超时时间、密码
+                    jedisPool = new JedisPool(poolConfig, "39.106.35.112", 6379, 60000, "abc123");
+                }
+            }
+        }
+        return jedisPool;
+    }
+
+    public static void release(JedisPool jedisPool, Jedis jedis) {
+        if (null != jedis) {
+            jedisPool.returnResource(jedis);
+        }
+    }
+
+}
+```
+
+RedisUtil
+
+```java
+package com.atguigu.util;
+
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.util.RedisTemplate
+ */
+@EnableScheduling
+@EnableAsync
+public class RedisUtil {
+
+    //查找验证码
+    public static Map<String, Object> findCode(String phone) {
+        Jedis jedis = null;
+        try {
+            //从连接池获取Jedis对象
+            JedisPool pool = JedisPoolUtil.getJedisPoolInstance();
+            jedis = pool.getResource();
+
+            //选择数据库
+            jedis.select(0);
+
+            //对redis进行操作
+            //获取value的值
+            String code = jedis.get(phone);
+            //获取value的过期时间
+            Long timeout = jedis.ttl(phone);
+
+            //返回指定格式
+            HashMap<String, Object> result = new HashMap<>();
+            result.put("code",code);
+            result.put("timeout",timeout);
+
+            return result;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            //关闭连接
+            jedis.close();
+        }
+        return null;
+    }
+
+    //插入验证码
+    public static Boolean addCode(String phone, String code, Integer timeout) {
+        Jedis jedis = null;
+        try {
+            //从连接池获取Jedis对象
+            JedisPool pool = JedisPoolUtil.getJedisPoolInstance();
+            jedis = pool.getResource();
+
+            //选择数据库
+            jedis.select(0);
+
+            //通过代码对redis进行操作
+            jedis.setex(phone, timeout, code);
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            //关闭连接
+            jedis.close();
+        }
+        return false;
+    }
+
+}
+```
+
+
+
+### 8.6.4修改后端资源
+
+UserInfoController修改内容
+
+```java
+    /**
+     * 处理/sendSms/phone路径，调用阿里云短信服务器发送短信
+     */
+    @RequestMapping("/sendCode/{phone}")
+    public Result sendCode(@PathVariable String phone, HttpSession session) {
+        //先判断redis内有验证码，有的话就不发送了
+        Map redisInfo = RedisUtil.findCode(phone);
+        Long time = (Long) redisInfo.get("timeout");
+        if (time != -2) {
+            return Result.ok(time);
+        } else {
+            //生成验证码并放到redis中
+            Integer hashCode = UUID.randomUUID().toString().hashCode();
+            // String.hashCode()可能会是负数，如果为负数需要转换为正数
+            hashCode = hashCode < 0 ? -hashCode : hashCode;
+            //截取六位数验证码
+            String code = hashCode.toString().substring(0, 6);
+            //设置超时时间，单位(秒)
+            Integer timeout = 60;
+            //向用户发送验证码
+            Boolean sendOk = SendSms.sendSms(phone, code);
+            if (sendOk) {
+                //发送成功，在redis中存储验证码
+                RedisUtil.addCode(phone, code, timeout);
+            } else {
+                System.out.println("发送失败");
+            }
+        }
+        return Result.ok(false);
+    }
+
+
+    /**
+     * 处理/register路径，用户注册操作
+     * registerVo请求参数包裹着注册所需的全部信息
+     */
+    @RequestMapping("/register")
+    public Result register(@RequestBody RegisterVo registerVo, HttpSession session) {
+        //1. 获取到注册的数据(code/手机号/密码/昵称)
+        String code = registerVo.getCode();
+        String phone = registerVo.getPhone();
+        String password = registerVo.getPassword();
+        String nickName = registerVo.getNickName();
+        //2. 校验参数是否为空
+        if (StringUtils.isEmpty(code) || StringUtils.isEmpty(phone) || StringUtils.isEmpty(password) || StringUtils.isEmpty(nickName)) {
+            //若有空参数，直接给前台一个参数错误203响应
+            return Result.build(null, ResultCodeEnum.PARAM_ERROR);
+        }
+        //3. 校验验证码是否正确
+        //先根据手机号获取验证码，然后再判断
+        Map redisInfo = RedisUtil.findCode(phone);
+        String trueCode = (String) redisInfo.get("code");
+        if (!code.equals(trueCode)) {
+            return Result.build(null, ResultCodeEnum.CODE_ERROR);
+        }
+        //4. 校验手机号是否重复(根据phone，去数据库做二次查询)
+        UserInfo userInfo = userInfoService.findUserInfoByPhone(phone);
+        if (userInfo != null) {
+            //若不为空，则查询到了实例对象，说明手机号已被使用
+            return Result.build(null, ResultCodeEnum.PHONE_REGISTER_ERROR);
+        }
+        //5. 将数据保存到数据库即可
+        UserInfo info = new UserInfo();
+        info.setPhone(phone);
+        info.setNickName(nickName);
+        //使用MD5对密码进行加密
+        info.setPassword(MD5.encrypt(password));
+        //status不设置也行，因为默认值为1。1表示该用户锁定，0表示该用户正常
+        info.setStatus(1);
+
+        //新增操作
+        userInfoService.insert(info);
+
+        return Result.ok();
+    }
+```
+
+
+
+### 8.6.5修改前端资源
+
+注册页面regist.html的内容，修改验证码长度为6位数！修改密码和确认密码长度为16位数，修改发送手机验证码的异步函数！⚠️
+
+```html
+<p class="clearfix">
+    <label class="one" for="agent">验证码：</label>
+    <input id="agent" v-model="registerVo.code" type="text" class="required" maxlength="6" value placeholder="请输入手机验证码"/>
+</p>
+<p class="clearfix">
+    <span style="color: red;margin-left: 90px;">{{valid.code}}</span>
+</p>
+<p class="clearfix">
+    <label class="one" for="password">登录密码：</label>
+    <input id="password" v-model="registerVo.password" type="password" maxlength="16"
+           class="{required:true,rangelength:[8,20],}" value placeholder="请输入密码"/>
+</p>
+<p class="clearfix">
+    <span style="color: red;margin-left: 90px;">{{valid.password}}</span>
+</p>
+<p class="clearfix">
+    <label class="one" for="confirm_password">确认密码：</label>
+    <input id="confirm_password" v-model="registerVo.confirmPassword"  type="password" maxlength="16"
+           class="{required:true,equalTo:'#password'}" value placeholder="请再次输入密码"/>
+</p>
+```
+
+```java
+var that = this
+axios.get('/userInfo/sendCode/'+this.registerVo.phone).then(function (response) {
+    if(response.data.data){
+        that.second = response.data.data;
+    }
+    that.sending = false;
+    that.timeDown();
+});
+```
+
+
+
 
 
 # 9 权限管理
