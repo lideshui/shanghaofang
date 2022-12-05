@@ -14626,3 +14626,410 @@ public String assignRole(Long adminId,Long[] roleIds){
 }
 ```
 
+
+
+## 9.2给角色分配权限
+
+### 9.2.1准备web资源
+
+role/index添加内容
+
+跳转到分配页面的按钮
+
+```html
+<a class="assign" th:attr="data-id=${item.id}">分配权限</a>
+```
+
+js触发事件
+
+```javascript
+$(".assign").on("click",function () {
+    var id = $(this).attr("data-id");
+    opt.openWin("/role/assignShow/"+id,'修改',580,430);
+});
+```
+
+创建assignShow.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+
+<link rel="stylesheet" th:href="@{/static/js/plugins/zTree_v3/zTreeStyle.css}" type="text/css">
+<script type="text/javascript" th:src="@{/static/js/plugins/zTree_v3/jquery.ztree.core.js}"></script>
+<script type="text/javascript" th:src="@{/static/js/plugins/zTree_v3/jquery.ztree.excheck.js}"></script>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/role/assignPermission}" method="post" class="form-horizontal">
+                <input type="hidden" name="roleId" th:value="${roleId}">
+                <input type="hidden" name="permissionIds" id="permissionIds" value="">
+                <div class="zTreeDemoBackground left">
+                    <ul id="treeDemo" class="ztree"></ul>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group posf">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="button" id="button">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button></div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script th:inline="javascript">
+    $(function(){
+        // 文档地址:http://www.treejs.cn/v3/demo.php#_201
+        var setting = {
+            check: {
+                enable: true
+            },
+            data: {
+                simpleData: {
+                    enable: true
+                }
+            }
+        };
+
+        //var zNodes = JSON.parse([[${zNodes}]]);
+        var zNodes = [[${zNodes}]];
+        // var zNodes =[
+        //     { id:1, pId:0, name:"随意勾选 1", open:true},
+        //     { id:11, pId:1, name:"随意勾选 1-1", open:true},
+        //     { id:111, pId:11, name:"随意勾选 1-1-1"},
+        //     { id:112, pId:11, name:"随意勾选 1-1-2"},
+        //     { id:12, pId:1, name:"随意勾选 1-2", open:true},
+        //     { id:121, pId:12, name:"随意勾选 1-2-1"},
+        //     { id:122, pId:12, name:"随意勾选 1-2-2"},
+        //     { id:2, pId:0, name:"随意勾选 2", checked:true, open:true},
+        //     { id:21, pId:2, name:"随意勾选 2-1"},
+        //     { id:22, pId:2, name:"随意勾选 2-2", open:true},
+        //     { id:221, pId:22, name:"随意勾选 2-2-1", checked:true},
+        //     { id:222, pId:22, name:"随意勾选 2-2-2"},
+        //     { id:23, pId:2, name:"随意勾选 2-3"}
+        // ];
+
+        var zTree =$.fn.zTree.init($("#treeDemo"), setting, zNodes);
+        zTree.expandAll(true);
+        $("#button").on("click",function () {
+            var checkedNodes = zTree.getCheckedNodes();
+            console.log(checkedNodes)
+            var permissionIdList = [];
+            for(var i=0; i<checkedNodes.length; i++) {
+                permissionIdList.push(checkedNodes[i].id)
+            }
+            $("#permissionIds").val(permissionIdList.join(","));
+            document.forms.ec.submit();
+        });
+    });
+</script>
+</body>
+</html>
+```
+
+
+
+### 9.2.2准备后端数据
+
+#### 9.2.2.1ServiceAPI
+
+PermissionService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.Permission;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.PermissionService
+ */
+public interface PermissionService extends BaseService<Permission> {
+
+    /**
+     * 返回渲染菜单指定格式的数据
+     */
+    List<Map<String,Object>> findZNodes(Long roleId);
+}
+```
+
+RolePermissionService
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.RolePermission;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.RolePermissionService
+ */
+public interface RolePermissionService extends BaseService<RolePermission> {
+
+    /**
+     * 更新角色权限
+     */
+    void insertRolePermission(Long roleId,Long[] permissionIds);
+
+}
+```
+
+
+
+#### 9.2.2.2dao层
+
+PermissionDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.Permission;
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.PermissionDao
+ */
+public interface PermissionDao extends BaseDao<Permission> {
+    /**
+     * 查询出所有权限菜单，加工后用插件渲染
+     */
+    List<Permission> findAll();
+}
+```
+
+RolePermissionDao
+
+```java
+package com.atguigu.dao;
+
+import com.atguigu.entity.RolePermission;
+
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.dao.RolePermissionDao
+ */
+public interface RolePermissionDao extends BaseDao<RolePermission> {
+    /**
+     * 根据角色Id查询到所有权限Id，为了将其设置为选中状态
+     */
+    List<Long> findPermissionIdByRoleId(Long roleId);
+
+    /**
+     * 根据角色id删除所有的权限Id
+     */
+    void deleteByRoleId(Long roleId);
+
+
+}
+```
+
+PermissionMapper
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.PermissionDao">
+
+   <!--查询出所有权限菜单，加工后用插件渲染-->
+    <select id="findAll" resultType="permission">
+        select * from acl_permission where is_deleted=0
+    </select>
+</mapper>
+```
+
+RolePermissionMapper
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.RolePermissionDao">
+
+   <!--查询当前角色已有的权限菜单，为了设置选中状态-->
+    <select id="findPermissionIdByRoleId" resultType="long">
+        select permission_id from acl_role_permission where role_id=#{roleId} and is_deleted=0
+    </select>
+
+    <!--删除当前角色对应的全部权限菜单-->
+    <update id="deleteByRoleId" >
+        update acl_role_permission set is_deleted=1 where role_id=#{roleId}
+    </update>
+
+    <!--新增角色对应的权限菜单，和删除配合使用完成权限菜单的修改功能-->
+    <insert id="insert">
+        insert into acl_role_permission(role_id,permission_id)
+        values(#{roleId},#{permissionId})
+    </insert>
+</mapper>
+```
+
+
+
+#### 9.2.2.3service层
+
+PermissionServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.dao.PermissionDao;
+import com.atguigu.dao.RolePermissionDao;
+import com.atguigu.entity.Permission;
+import com.atguigu.service.PermissionService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.PermissionServiceImpl
+ */
+@DubboService
+public class PermissionServiceImpl extends BaseServiceImpl<Permission> implements PermissionService {
+
+    @Autowired
+    private PermissionDao permissionDao;
+
+    @Autowired
+    private RolePermissionDao rolePermissionDao;
+
+    @Override
+    public BaseDao<Permission> getEntityDao() {
+        return permissionDao;
+    }
+
+
+    /**
+     * 先查询出所有的权限菜单，经过处理变为满足插件渲染的格式数据，再返回给前端
+     */
+    @Override
+    public List<Map<String, Object>> findZNodes(Long roleId) {
+        //先查出所有的权限菜单
+        List<Permission> list = permissionDao.findAll();
+
+        //再查出当前角色已拥有的权限菜单，为了将其设置为选中状态
+        List<Long> permissionIdList = rolePermissionDao.findPermissionIdByRoleId(roleId);
+
+        //将权限菜单list加工为插件可以渲染的格式
+        List<Map<String,Object>> zNodes=new ArrayList<>();
+        for (Permission permission : list) {
+            Map<String,Object> map=new HashMap<>();
+            //{ id:1, pId:0, name:"", checked:true}
+            map.put("id",permission.getId());
+            map.put("pId",permission.getParentId());
+            map.put("name",permission.getName());
+            //是否选中，当前角色已拥有的权限菜单，将其设置为选中状态
+            if(permissionIdList.contains(permission.getId())){
+                map.put("checked",true);
+            }
+            //每一个map都放到list集合里
+            zNodes.add(map);
+        }
+        return zNodes;
+    }
+
+
+}
+```
+
+RolePermissionServiceImpl
+
+```java
+package com.atguigu.service.impl;
+
+import com.atguigu.dao.BaseDao;
+import com.atguigu.dao.RolePermissionDao;
+import com.atguigu.entity.RolePermission;
+import com.atguigu.service.RolePermissionService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.impl.RolePermissionServiceImpl
+ */
+@DubboService
+public class RolePermissionServiceImpl extends BaseServiceImpl<RolePermission> implements RolePermissionService {
+
+    @Autowired
+    private RolePermissionDao rolePermissionDao;
+
+    @Override
+    public BaseDao<RolePermission> getEntityDao() {
+        return rolePermissionDao;
+    }
+
+    /**
+     * 更新角色权限菜单，先删除当前所有的权限菜单，再新增本次设置的
+     */
+    @Override
+    @Transactional
+    public void insertRolePermission(Long roleId, Long[] permissionIds) {
+        //1. 根据roleId将目前的所有关系删除
+        rolePermissionDao.deleteByRoleId(roleId);
+        //2. 再重新循环新增权限
+        for (Long permissionId : permissionIds) {
+            RolePermission rolePermission=new RolePermission();
+            rolePermission.setRoleId(roleId);
+            rolePermission.setPermissionId(permissionId);
+            rolePermissionDao.insert(rolePermission);
+        }
+    }
+}
+```
+
+
+
+#### 9.2.2.4contreller层
+
+RoleController添加内容
+
+```java
+    @DubboReference
+    private PermissionService permissionService;
+
+    @DubboReference
+    private RolePermissionService rolePermissionService;
+
+    /**
+     * 处理/assignShow/roleId路径，获取角色权限列表
+     */
+    @RequestMapping("/assignShow/{roleId}")
+    public String assignShow(@PathVariable Long roleId,Map map){
+        //传入当前角色Id
+        map.put("roleId",roleId);
+        //获取指定格式的菜单渲染数据，并放到请求域
+        //[{ id:2, pId:0, name:"用户管理", checked:true},{},{}...]
+        List<Map<String, Object>> zNodes = permissionService.findZNodes(roleId);
+        map.put("zNodes",zNodes);
+        return "role/assignShow";
+    }
+
+    /**
+     * 处理/assignPermission路径的请求，更新角色权限
+     */
+    @RequestMapping("/assignPermission")
+    public String assignPermission(Long roleId,Long[] permissionIds){
+        rolePermissionService.insertRolePermission(roleId,permissionIds);
+        return "common/success";
+    }
+```
+

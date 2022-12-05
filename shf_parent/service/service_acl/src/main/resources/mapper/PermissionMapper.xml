@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.PermissionDao">
+
+    <!--查询出所有权限菜单，加工后用插件渲染-->
+    <select id="findAll" resultType="permission">
+        select * from acl_permission where is_deleted=0
+    </select>
+</mapper>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--名称空间设置成dao层接口的全类名-->
+<mapper namespace="com.atguigu.dao.RolePermissionDao">
+
+    <!--查询当前角色已有的权限菜单，为了设置选中状态-->
+    <select id="findPermissionIdByRoleId" resultType="long">
+        select permission_id from acl_role_permission where role_id=#{roleId} and is_deleted=0
+    </select>
+
+    <!--删除当前角色对应的全部权限菜单-->
+    <update id="deleteByRoleId" >
+        update acl_role_permission set is_deleted=1 where role_id=#{roleId}
+    </update>
+
+    <!--新增角色对应的权限菜单，和删除配合使用完成权限菜单的修改功能-->
+    <insert id="insert">
+        insert into acl_role_permission(role_id,permission_id)
+        values(#{roleId},#{permissionId})
+    </insert>
+</mapper>
