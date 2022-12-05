@@ -9,4 +9,16 @@
     <select id="findAll" resultType="permission">
         select * from acl_permission where is_deleted=0
     </select>
+
+    <!--三表关联查询，过去当前用户的权限菜单-->
+    <select id="findPermissionByAdminId" resultType="permission">
+        SELECT DISTINCT ap.* FROM acl_admin_role aar LEFT JOIN acl_role_permission arp
+        ON aar.`role_id`=arp.`role_id` LEFT JOIN acl_permission ap
+        ON arp.`permission_id`=ap.`id`
+        WHERE aar.`admin_id`=#{adminId}
+        AND ap.`type`=1
+        AND aar.`is_deleted`=0
+        AND arp.`is_deleted`=0
+        AND ap.`is_deleted`=0
+    </select>
 </mapper>

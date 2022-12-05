@@ -15033,3 +15033,232 @@ RoleController添加内容
     }
 ```
 
+
+
+## 9.3左侧动态菜单
+
+### 9.3.1准备web资源
+
+修改frame/index.html，替换当前用户头像及名称，替换左侧菜单
+
+```html
+<nav class="navbar-default navbar-static-side" role="navigation">
+   <div class="nav-close"><i class="fa fa-times-circle"></i></div>
+   <div class="sidebar-collapse">
+      <ul class="nav" id="side-menu">
+         <li class="nav-header">
+            <div class="dropdown profile-element">
+               <span><img alt="image" class="img-circle" th:src="${admin.headUrl}" style="width: 50px;height: 50px;"/></span>
+               <a data-toggle="dropdown" class="dropdown-toggle" href="#">
+                  <span class="clear">
+                     <span class="block m-t-xs"><strong class="font-bold" th:text="${admin.name}">Beaut-zihan</strong></span>
+                     <span class="text-muted text-xs block">超级管理员<b class="caret"></b></span>
+                  </span>
+               </a>
+               <ul class="dropdown-menu animated fadeInRight m-t-xs">
+                  <li><a class="J_menuItem" href="javascript:">修改头像</a></li>
+                  <li><a class="J_menuItem" href="javascript:">个人资料</a></li>
+                  <li><a class="J_menuItem" href="javascript:">联系我们</a></li>
+                  <li><a class="J_menuItem" href="javascript:">信箱</a></li>
+                  <li class="divider"></li>
+                  <li><a href="/logout">安全退出</a></li>
+               </ul>
+            </div>
+            <div class="logo-element">H+</div>
+         </li>
+        <!--循环菜单开始-->
+        <li th:each="one: ${permissionList}">
+          <a href="#">
+            <i class="fa fa-home"></i>
+            <span class="nav-label" th:text="${one.name}">系统管理</span>
+            <span class="fa arrow"></span>
+          </a>
+          <ul class="nav nav-second-level collapse">
+            <li th:each="two,it: ${one.children}"><a class="J_menuItem" th:href="${two.url}" th:data-index="${it.count}" th:text="${two.name}">用户管理</a></li>
+          </ul>
+        </li>
+        <!--循环菜单结束-->
+      </ul>
+   </div>
+</nav>
+```
+
+
+
+
+
+### 9.3.2准备后端数据
+
+首先将mvc配置文件中配置的首页访问路径删除
+
+其次是再配置PermissionHelper工具类到model模块下的util包下，再配置其他层⚠️
+
+#### 9.3.2.1PermissionHelper
+
+在model模块中添加工具类
+
+```java
+package com.atguigu.util;
+
+import com.atguigu.entity.Permission;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * <p>
+ * 根据权限数据构建菜单数据
+ * </p>
+ *
+ */
+public class PermissionHelper {
+
+    /**
+     * 使用递归方法建菜单
+     * @param treeNodes
+     * @return
+     */
+    public static List<Permission> bulid(List<Permission> treeNodes) {
+        //创建存储处理结果的集合
+        List<Permission> trees = new ArrayList<>();
+        //循环每一个权限菜单节点
+        for (Permission treeNode : treeNodes) {
+            //找出所有parent_id为0的节点
+            if (treeNode.getParentId().longValue() == 0) {
+                //parent_id为0设置为一级节点
+                treeNode.setLevel(1);
+                //传入本次循环的一级节点，和所有节点列表，为其子节点属性赋值
+                trees.add(findChildren(treeNode,treeNodes));
+            }
+        }
+        return trees;
+    }
+
+    /**
+     * 递归查找子节点
+     * @param treeNodes
+     * @return
+     */
+    public static Permission findChildren(Permission treeNode, List<Permission> treeNodes) {
+        //初始化当前节点的子节点集合
+        treeNode.setChildren(new ArrayList<Permission>());
+
+        //循环每一个权限菜单节点
+        for (Permission it : treeNodes) {
+            //查找当前节点的直接子节点
+            if(treeNode.getId().longValue() == it.getParentId().longValue()) {
+                //设置直接子节点的等级为父节点等级+1
+                int level = treeNode.getLevel() + 1;
+                it.setLevel(level);
+                //确保子节点已经初始化，其实之前已经初始化过了，这里加上双保险
+                if (treeNode.getChildren() == null) {
+                    treeNode.setChildren(new ArrayList<>());
+                }
+                //将当前节点的直接子节点存入到自己的Children属性(list集合)中
+                //直接递归，查找子节点的直接子节点，直到第N辈的子节点无子节点可循环时跳出该递归⚠️
+                treeNode.getChildren().add(findChildren(it,treeNodes));
+            }
+        }
+        return treeNode;
+    }
+}
+```
+
+
+
+#### 9.3.2.2ServiceAPI
+
+PermissionService添加内容
+
+```java
+    /**
+     * 获取当前用户的菜单权限，获取后循环渲染
+     */
+    List<Permission> findPermissionByAdminId(Long adminId);
+```
+
+
+
+#### 9.3.2.3dao层
+
+PermissionDao添加内容
+
+```java
+    /**
+     * 获取当前用户的权限菜单，然后循环渲染
+     */
+    List<Permission> findPermissionByAdminId(Long adminId);
+```
+
+PermissionMapper添加内容
+
+```xml
+    <!--三表关联查询，过去当前用户的权限菜单-->
+    <select id="findPermissionByAdminId" resultType="permission">
+        SELECT DISTINCT ap.* FROM acl_admin_role aar LEFT JOIN acl_role_permission arp
+        ON aar.`role_id`=arp.`role_id` LEFT JOIN acl_permission ap
+        ON arp.`permission_id`=ap.`id`
+        WHERE aar.`admin_id`=#{adminId}
+        AND ap.`type`=1
+        AND aar.`is_deleted`=0
+        AND arp.`is_deleted`=0
+        AND ap.`is_deleted`=0
+    </select>
+```
+
+
+
+#### 9.3.2.4service层
+
+PermissionServiceImpl添加内容，
+
+```java
+    /**
+     * 先拿到当前用户的所有权限菜单信息，再通过工具类PermissionHelper处理菜单的级别关系
+     * PermissionHelper类底层是通过递归来处理分级关系的，因为是服务器渲染的，处理后才可以循环渲染
+     */
+    @Override
+    public List<Permission> findPermissionByAdminId(Long adminId) {
+        List<Permission> permissionList = permissionDao.findPermissionByAdminId(adminId);
+        //permissionList所有的菜单信息，需要借助PermissionHelper处理其分级关系
+        List<Permission> permissionList1 = PermissionHelper.bulid(permissionList);
+        return permissionList1;
+    }
+```
+
+
+
+#### 9.3.2.5controller层
+
+IndexController修改内容
+
+```java
+    @DubboReference
+    private AdminService adminService;
+
+    @DubboReference
+    private PermissionService permissionService;
+  
+    /**
+     * 首页默认访问路径
+     */
+    @RequestMapping("/")
+    public String index(Map map) {
+        //先写死，因为还没做后台的登录功能，先模拟登录用户的id
+        Long adminId = 3L;
+        Admin admin = adminService.getById(adminId);
+        List<Permission> permissionList = permissionService.findPermissionByAdminId(adminId);
+        map.put("admin", admin);
+        map.put("permissionList",permissionList);
+        return PAGE_INDEX;
+    }
+
+    /**
+     * 首页iframe窗体中内置的欢迎页面
+     */
+    @RequestMapping("/main")
+    public String main() {
+        return PAGE_MAIN;
+    }
+```
+

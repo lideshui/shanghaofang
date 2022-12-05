@@ -5,6 +5,7 @@ import com.atguigu.dao.PermissionDao;
 import com.atguigu.dao.RolePermissionDao;
 import com.atguigu.entity.Permission;
 import com.atguigu.service.PermissionService;
+import com.atguigu.util.PermissionHelper;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.beans.factory.annotation.Autowired;
 import java.util.ArrayList;
@@ -60,5 +61,15 @@ public class PermissionServiceImpl extends BaseServiceImpl<Permission> implement
         return zNodes;
     }
 
-
+    /**
+     * 先拿到当前用户的所有权限菜单信息，再通过工具类PermissionHelper处理菜单的级别关系
+     * PermissionHelper类底层是通过递归来处理分级关系的，因为是服务器渲染的，处理后才可以循环渲染
+     */
+    @Override
+    public List<Permission> findPermissionByAdminId(Long adminId) {
+        List<Permission> permissionList = permissionDao.findPermissionByAdminId(adminId);
+        //permissionList所有的菜单信息，需要借助PermissionHelper处理其分级关系
+        List<Permission> permissionList1 = PermissionHelper.bulid(permissionList);
+        return permissionList1;
+    }
 }
