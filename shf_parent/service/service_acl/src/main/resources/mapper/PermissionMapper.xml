@@ -62,4 +62,21 @@
     <update id="delete">
         update acl_permission set is_deleted=1 where id=#{id}
     </update>
+
+    <!--根据当前登录用户的id获取全部按钮的权限code-->
+    <select id="findPermissionCodeByAdminId" resultType="string">
+        SELECT DISTINCT ap.code FROM acl_admin_role aar LEFT JOIN acl_role_permission arp
+        ON aar.`role_id`=arp.`role_id` LEFT JOIN acl_permission ap
+        ON arp.`permission_id`=ap.`id`
+        WHERE aar.`admin_id`=#{adminId}
+        AND ap.`type`=2
+        AND aar.`is_deleted`=0
+        AND arp.`is_deleted`=0
+        AND ap.`is_deleted`=0
+    </select>
+
+    <!--直接获取全部的权限code，为超级管理员提供全部权限按钮时使用。但是要注意只获取按钮的-->
+    <select id="findAllCode" resultType="string">
+        select code from acl_permission where is_deleted=0 and type=2
+    </select>
 </mapper>

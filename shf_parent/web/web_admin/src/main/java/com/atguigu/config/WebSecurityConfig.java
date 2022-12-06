@@ -2,6 +2,7 @@ package com.atguigu.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
@@ -12,6 +13,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @Configuration
 //@EnableWebSecurity是开启SpringSecurity的默认行为
 @EnableWebSecurity
+//开启权限按钮验证功能
+@EnableGlobalMethodSecurity(prePostEnabled = true)
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     /**
@@ -65,6 +68,11 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         http.csrf()
                 //需要将跨域请求关闭，不然请求不到/login无法退出
                 .disable();
+
+        //添加自定义无权限处理器
+        http.exceptionHandling().
+                //我们自己定义的实现了AccessDeniedHandler接口的处理器类
+                        accessDeniedHandler(new CustomAccessDeineHandler());
     }
 
 }

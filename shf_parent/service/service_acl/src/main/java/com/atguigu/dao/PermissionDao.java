@@ -24,4 +24,14 @@ public interface PermissionDao extends BaseDao<Permission> {
      * 获取自己的子节点列表
      */
     List<Permission> findPermissionByParentId(Serializable parentId);
+
+    /**
+     * 根据当前登录用户的id获取全部的按钮权限code
+     */
+    List<String> findPermissionCodeByAdminId(Long adminId);
+
+    /**
+     * 直接获取全部的权限code，为超级管理员提供全部按钮权限时使用
+     */
+    List<String> findAllCode();
 }

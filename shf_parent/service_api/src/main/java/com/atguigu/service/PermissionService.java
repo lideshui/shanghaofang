@@ -25,4 +25,9 @@ public interface PermissionService extends BaseService<Permission> {
      * 获取菜单的全部数据
      */
     List<Permission> findAll();
+
+    /**
+     * 根据当前登录用户的id获取全部按钮的权限code
+     */
+    List<String> findPermissionCodeByAdminId(Long adminId);
 }

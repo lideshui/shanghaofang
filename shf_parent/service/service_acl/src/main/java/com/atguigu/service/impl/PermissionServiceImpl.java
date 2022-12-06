@@ -101,4 +101,20 @@ public class PermissionServiceImpl extends BaseServiceImpl<Permission> implement
         //删除子节点后，再删除自身节点
         permissionDao.delete(id);
     }
+
+    /**
+     * 根据当前登录用户的id获取全部的权限code
+     * 对超级管理员进行判断，如果是超级管理员则拥有全部权限
+     */
+    @Override
+    public List<String> findPermissionCodeByAdminId(Long adminId) {
+        List<String> codes=null;
+        //如果当前登录用户的id为1，则是超级管理员，拥有全部权限
+        if(adminId==1){
+            codes=permissionDao.findAllCode();
+        }else{
+            codes=permissionDao.findPermissionCodeByAdminId(adminId);
+        }
+        return codes;
+    }
 }

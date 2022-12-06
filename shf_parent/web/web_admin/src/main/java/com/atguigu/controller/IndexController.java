@@ -30,6 +30,7 @@ public class IndexController {
     private final static String PAGE_INDEX = "frame/index";
     private final static String PAGE_MAIN = "frame/main";
     private final static String PAGE_LOGIN = "frame/login";
+    private final static String PAGE_AUTH = "frame/auth";
 
     /**
      * 后台首页
@@ -67,4 +68,11 @@ public class IndexController {
         return PAGE_LOGIN;
     }
 
+    /**
+     * 处理/auth路径，定义没有权限的提示页面
+     */
+    @RequestMapping("/auth")
+    public String auth() {
+        return PAGE_AUTH;
+    }
 }

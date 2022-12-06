@@ -7,6 +7,7 @@ import com.atguigu.service.RoleService;
 import com.github.pagehelper.PageInfo;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -44,6 +45,7 @@ public class RoleController extends BaseController {
     /**
      * @Description: 处理/role请求，搜索处理、分页处理
      */
+    @PreAuthorize("hasAuthority('role.show')")
     @RequestMapping
     public String index(Map map, HttpServletRequest request) {
         //处理请求参数
@@ -62,6 +64,7 @@ public class RoleController extends BaseController {
     /**
      * @Description: 处理/create请求，跳转到添加角色页面
      */
+    @PreAuthorize("hasAuthority('role.create')")
     @RequestMapping("/create")
     public String create() {
         return PAGE_CREATE;
@@ -70,6 +73,7 @@ public class RoleController extends BaseController {
     /**
      * @Description: 处理/save请求，执行添加角色操作
      */
+    @PreAuthorize("hasAuthority('role.create')")
     @RequestMapping("/save")
     public String save(Role role) {
         roleService.insert(role);
@@ -79,6 +83,7 @@ public class RoleController extends BaseController {
     /**
      * @Description: 处理/edit/id请求，跳转到修改角色页面
      */
+    @PreAuthorize("hasAuthority('role.edit')")
     @RequestMapping("/edit/{id}")
     public String edit(
             @PathVariable Long id,
@@ -92,6 +97,7 @@ public class RoleController extends BaseController {
     /**
      * @Description: 处理/update请求，执行角色修改操作
      */
+    @PreAuthorize("hasAuthority('role.edit')")
     @RequestMapping(value="/update")
     public String update(Role role) {
         roleService.update(role);
@@ -101,6 +107,7 @@ public class RoleController extends BaseController {
     /**
      * @Description: 处理/delete/id请求，执行角色删除操作
      */
+    @PreAuthorize("hasAuthority('role.delete')")
     @RequestMapping("/delete/{id}")
     public String delete(@PathVariable Long id) {
         roleService.delete(id);
@@ -111,7 +118,7 @@ public class RoleController extends BaseController {
     /**
      * 处理/assignShow/roleId路径，获取角色权限列表
      */
-    @RequestMapping("/assignShow/{roleId}")
+    @PreAuthorize("hasAuthority('role.assgin')")
     public String assignShow(@PathVariable Long roleId,Map map){
         //传入当前角色Id
         map.put("roleId",roleId);
@@ -125,6 +132,7 @@ public class RoleController extends BaseController {
     /**
      * 处理/assignPermission路径的请求，更新角色权限
      */
+    @PreAuthorize("hasAuthority('role.assgin')")
     @RequestMapping("/assignPermission")
     public String assignPermission(Long roleId,Long[] permissionIds){
         rolePermissionService.insertRolePermission(roleId,permissionIds);

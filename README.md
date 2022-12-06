@@ -16293,3 +16293,433 @@ public String index(Map map) {
 }
 ```
 
+
+
+## 10.4用户授权
+
+### 10.4.1获取设置用户权限
+
+#### 10.4.1.1ServiceAPI
+
+PermissionService增加内容
+
+```java
+/**
+ * 根据当前登录用户的id获取全部按钮的权限code
+ */
+List<String> findPermissionCodeByAdminId(Long adminId);
+```
+
+
+
+#### 10.4.1.2dao层
+
+PermissionDao增加内容
+
+```java
+/**
+ * 根据当前登录用户的id获取全部的按钮权限code
+ */
+List<String> findPermissionCodeByAdminId(Long adminId);
+
+/**
+ * 直接获取全部的权限code，为超级管理员提供全部按钮权限时使用
+ */
+List<String> findAllCode();
+```
+
+PermissionMapper增加内容
+
+```xml
+<!--根据当前登录用户的id获取全部按钮的权限code-->
+<select id="findPermissionCodeByAdminId" resultType="string">
+    SELECT DISTINCT ap.code FROM acl_admin_role aar LEFT JOIN acl_role_permission arp
+    ON aar.`role_id`=arp.`role_id` LEFT JOIN acl_permission ap
+    ON arp.`permission_id`=ap.`id`
+    WHERE aar.`admin_id`=#{adminId}
+    AND ap.`type`=2
+    AND aar.`is_deleted`=0
+    AND arp.`is_deleted`=0
+    AND ap.`is_deleted`=0
+</select>
+
+<!--直接获取全部的权限code，为超级管理员提供全部权限按钮时使用。但是要注意只获取按钮的-->
+<select id="findAllCode" resultType="string">
+    select code from acl_permission where is_deleted=0 and type=2
+</select>
+```
+
+
+
+#### 10.4.1.3service层
+
+PermissionServiceImpl增加内容
+
+```java
+/**
+ * 根据当前登录用户的id获取全部的权限code
+ * 对超级管理员进行判断，如果是超级管理员则拥有全部权限
+ */
+@Override
+public List<String> findPermissionCodeByAdminId(Long adminId) {
+    List<String> codes=null;
+    //如果当前登录用户的id为1，则是超级管理员，拥有全部权限
+    if(adminId==1){
+        codes=permissionDao.findAllCode();
+    }else{
+        codes=permissionDao.findPermissionCodeByAdminId(adminId);
+    }
+    return codes;
+}
+```
+
+
+
+#### 10.4.1.4设置用户权限
+
+UserDetailsServiceImpl修改内容
+
+```java
+package com.atguigu.service;
+
+import com.alibaba.druid.util.StringUtils;
+import com.atguigu.entity.Admin;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.UserDetailsServiceImpl
+ */
+@Component
+public class UserDetailsServiceImpl implements UserDetailsService {
+
+    @DubboReference
+    private AdminService adminService;
+
+    @DubboReference
+    private PermissionService permissionService;
+
+    /**
+     * SpringSecurity在验证用户名和密码的时，默认调用UserDetailsService的loadUserByUsername方法
+     * 我们选择重写，调用的就是重写之后的
+     * username就是在登录页面输入的用户名
+     */
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        System.out.println("用户输入的用户名：" + username);
+        //1. 通过用户名去数据查询Admin对象回来
+        Admin admin = adminService.findAdminByUsername(username);
+
+        //2. 如果对象有值，说明用户名是对的，然后在让SpringSecurity去完成密码的校验(有加密)
+        if (admin == null) {
+            //如果没有查到对应的实例，说明用户名不存在
+            throw new UsernameNotFoundException("用户名不存在！");
+        }
+
+        //开始添加当前登录成功用户的所有权限code
+        List<String> codeList = permissionService.findPermissionCodeByAdminId(admin.getId());
+
+        //将拿到的权限code转换为支持的权限参数类型
+        Collection<GrantedAuthority> authorities = new ArrayList<>();
+        for(String code : codeList) {
+            if(StringUtils.isEmpty(code)) continue;
+            SimpleGrantedAuthority authority = new SimpleGrantedAuthority(code);
+            authorities.add(authority);
+        }
+
+
+        //若用户存在，则开始校验密码。admin.getPassword()就是从数据库查询回来的密码--> 必须是加密的密码
+        //无论用户实例是什么对象，都会根据对象的参数返回SpringSecurity提供的User对象，即当前登录对象
+        return new User(username, admin.getPassword(),
+                //传入当前成功登录用户的权限列表
+                authorities);
+    }
+}
+```
+
+
+
+### 10.4.2controller权限控制
+
+#### 10.4.2.1添加开启权限注解
+
+WebSecurityConfig类添加开启标签
+
+```java
+//开启权限按钮验证功能
+@EnableGlobalMethodSecurity(prePostEnabled = true)
+```
+
+
+
+#### 10.4.2.2controller设置权限
+
+以角色管理增删改查等为例，RoleController功能权限数据我们已经配置到数据库表的code字段里
+
+使用`@PreAuthorize("hasAuthority('code')")`添加权限
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.Role;
+import com.atguigu.service.PermissionService;
+import com.atguigu.service.RolePermissionService;
+import com.atguigu.service.RoleService;
+import com.github.pagehelper.PageInfo;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import javax.servlet.http.HttpServletRequest;
+import java.util.List;
+import java.util.Map;
+
+
+/**
+ * TODD
+ * @AllClassName: com.atguigu.controller.RoleController
+ */
+@Controller
+@RequestMapping("/role")
+public class RoleController extends BaseController {
+
+    private final static String PAGE_INDEX = "role/index";
+    private final static String PAGE_CREATE = "role/create";
+    private final static String PAGE_EDIT = "role/edit";
+    private final static String PAGE_SUCCESS = "common/success";
+    private final static String LIST_ACTION = "redirect:/role";
+
+
+    @DubboReference
+    private RoleService roleService;
+
+    @DubboReference
+    private PermissionService permissionService;
+
+    @DubboReference
+    private RolePermissionService rolePermissionService;
+
+
+    /**
+     * 处理/请求，跳转到index页，搜索处理、分页处理
+     */
+    @PreAuthorize("hasAuthority('role.show')")
+    @RequestMapping
+    public String index(Map map, HttpServletRequest request) {
+        //处理请求参数
+        Map<String,Object> filters = getFilters(request);
+        //传递参数到service层，拿到查询结果并构建分页对象
+        PageInfo<Role> page = roleService.findPage(filters);
+
+        //将PageInfo分页对象放到请求域，里面有分页信息和搜索结果
+        map.put("page", page);
+        //搜索内容的回显
+        map.put("filters", filters);
+
+        return PAGE_INDEX;
+    }
+
+    /**
+     * 处理/create请求，跳转到添加资源页面
+     */
+    @PreAuthorize("hasAuthority('role.create')")
+    @RequestMapping("/create")
+    public String create() {
+        return PAGE_CREATE;
+    }
+
+    /**
+     * 处理/save请求，执行添加资源操作
+     */
+    @PreAuthorize("hasAuthority('role.create')")
+    @RequestMapping("/save")
+    public String save(Role role) {
+        roleService.insert(role);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * 处理/edit/id请求，跳转到修改资源页面
+     */
+    @PreAuthorize("hasAuthority('role.edit')")
+    @RequestMapping("/edit/{id}")
+    public String edit(
+            @PathVariable Long id,
+            Map map
+    ) {
+        Role role = roleService.getById(id);
+        map.put("role",role);
+        return PAGE_EDIT;
+    }
+
+    /**
+     * 处理/update请求，执行资源修改操作
+     */
+    @PreAuthorize("hasAuthority('role.edit')")
+    @RequestMapping(value="/update")
+    public String update(Role role) {
+        roleService.update(role);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * 处理/delete/id请求，执行资源删除操作
+     */
+    @PreAuthorize("hasAuthority('role.delete')")
+    @RequestMapping("/delete/{id}")
+    public String delete(@PathVariable Long id) {
+        roleService.delete(id);
+        //不是在iframe窗体内执行操作，直接重定向即可
+        return LIST_ACTION;
+    }
+
+    /**
+     * 处理/assignShow/roleId路径，获取角色权限列表
+     */
+    @PreAuthorize("hasAuthority('role.assgin')")
+    @RequestMapping("/assignShow/{roleId}")
+    public String assignShow(@PathVariable Long roleId,Map map){
+        //传入当前角色Id
+        map.put("roleId",roleId);
+        //获取指定格式的菜单渲染数据，并放到请求域
+        //[{ id:2, pId:0, name:"用户管理", checked:true},{},{}...]
+        List<Map<String, Object>> zNodes = permissionService.findZNodes(roleId);
+        map.put("zNodes",zNodes);
+        return "role/assignShow";
+    }
+
+    /**
+     * 处理/assignPermission路径的请求，更新角色权限
+     */
+    @PreAuthorize("hasAuthority('role.assgin')")
+    @RequestMapping("/assignPermission")
+    public String assignPermission(Long roleId,Long[] permissionIds){
+        rolePermissionService.insertRolePermission(roleId,permissionIds);
+        return "common/success";
+    }
+
+}
+```
+
+
+
+#### 10.4.2.3友好提示页面
+
+IndexController添加内容
+
+```java
+    private final static String PAGE_AUTH = "frame/auth";
+
+    /**
+     * 处理/auth路径，定义没有权限的提示页面
+     */
+    @RequestMapping("/auth")
+    public String auth() {
+        return PAGE_AUTH;
+    }
+```
+
+frame添加页面auth.html
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body style="position: relative;">
+<div style="text-align:center;margin-top: 100px;font-size: 20px;">
+    <strong>没有权限</strong>
+</div>
+</body>
+</html>
+```
+
+实现创建CustomAccessDeineHandler类AccessDeniedHandler接口
+
+```java
+package com.atguigu.config;
+
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.web.access.AccessDeniedHandler;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.config.CustomAccessDeineHandler
+ */
+public class CustomAccessDeineHandler implements AccessDeniedHandler {
+    /**
+     * 权限验证不通过的处理器，未通过授权统一跳转到/auth路径
+     */
+    @Override
+    public void handle(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, AccessDeniedException e) throws IOException, ServletException {
+        httpServletResponse.sendRedirect("/auth");
+    }
+}
+```
+
+WebSecurityConfig中配置异常类：AccessDeniedHandler接口实现类
+
+```java
+@Override
+protected void configure(HttpSecurity http) throws Exception {
+
+    //不再需要父级的方法，自己配置SpringSecurity
+    //super.configure(http);
+
+    //设置允许iframe进行嵌套
+    http.headers().frameOptions().disable();
+
+    //and()方法返回的是http对象本身⚠️
+    //设置不需要认证就可以访问的路径(所有的静态资源、/login)
+    http.authorizeRequests()
+            // 允许匿名访问的路径
+            .antMatchers("/static/**","/login").permitAll()
+            //其他的请求都需要认证
+            .anyRequest().authenticated();
+
+    //设置登录
+    http.formLogin()
+            //设置自己的登录页面，不再使用SpringSecurity默认提供的
+            //未登录时，访问哪个路径都跳转到这里
+            .loginPage("/login")
+            //登录认证成功后默认转跳的路径
+            .defaultSuccessUrl("/");
+
+    //设置退出
+    http.logout()
+            //退出登陆的路径，指定spring security拦截的注销url
+            //退出功能是security提供的
+            .logoutUrl("/logout")
+            //用户退出后要被重定向的url
+            .logoutSuccessUrl("/login");
+
+    //跨域设置
+    http.csrf()
+            //需要将跨域请求关闭，不然请求不到/login无法退出
+            .disable();
+
+    //添加自定义无权限处理器
+    http.exceptionHandling().
+            //我们自己定义的实现了AccessDeniedHandler接口的处理器类
+            accessDeniedHandler(new CustomAccessDeineHandler());
+}
+```
+
