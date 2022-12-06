@@ -39,6 +39,7 @@
         <aliyun.version>2.0.22</aliyun.version>
         <jedis.version>2.9.0</jedis.version>
         <spring.security.version>5.4.10</spring.security.version>
+        <thymeleaf-springsecurity5.version>3.0.4.RELEASE</thymeleaf-springsecurity5.version>
     </properties>
 
     <!--依赖管理，子类可按需引用继承-->
@@ -181,6 +182,13 @@
                 <groupId>org.springframework.security</groupId>
                 <artifactId>spring-security-config</artifactId>
                 <version>${spring.security.version}</version>
+            </dependency>
+
+            <!--用于spring security5标签，thymeleaf和security整合的jar包-->
+            <dependency>
+                <groupId>org.thymeleaf.extras</groupId>
+                <artifactId>thymeleaf-extras-springsecurity5</artifactId>
+                <version>${thymeleaf-springsecurity5.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

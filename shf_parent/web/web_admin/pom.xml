@@ -25,6 +25,12 @@
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-config</artifactId>
         </dependency>
+
+        <!--用于spring security5标签，thymeleaf和security整合的jar包-->
+        <dependency>
+            <groupId>org.thymeleaf.extras</groupId>
+            <artifactId>thymeleaf-extras-springsecurity5</artifactId>
+        </dependency>
     </dependencies>
 
     <!--设置服务器jetty的参数，以Maven的插件形式存在-->

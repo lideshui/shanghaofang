@@ -16723,3 +16723,212 @@ protected void configure(HttpSecurity http) throws Exception {
 }
 ```
 
+
+
+### 10.4.3页面功能按钮权限控制
+
+页面上控制显示，但还能通过路径访问，可配合controller权限控制使用
+
+#### 10.4.3.1引入依赖
+
+shf_parent添加依赖管理
+
+```xml
+<thymeleaf-springsecurity5.version>3.0.4.RELEASE</thymeleaf-springsecurity5.version>
+```
+
+```xml
+<!--用于spring security5标签，thymeleaf和security整合的jar包-->
+<dependency>
+    <groupId>org.thymeleaf.extras</groupId>
+    <artifactId>thymeleaf-extras-springsecurity5</artifactId>
+    <version>${thymeleaf-springsecurity5.version}</version>
+</dependency>
+```
+
+web_admin引入依赖
+
+```xml
+<!--用于spring security5标签，thymeleaf和security整合的jar包-->
+<dependency>
+    <groupId>org.thymeleaf.extras</groupId>
+    <artifactId>thymeleaf-extras-springsecurity5</artifactId>
+</dependency>
+```
+
+
+
+#### 10.4.3.2视图模板引擎配置
+
+修改spring-mvc.xml，在模板引擎配置spring security 标签支持：在templateResolver模块下添加内容
+
+```xml
+    <!--配置视图解析器 ：Thymeleaf  SpringBoot之后是不需要自己配置-->
+    <bean class="org.thymeleaf.spring5.view.ThymeleafViewResolver" id="viewResolver">
+        <!--配置字符集属性-->
+        <property name="characterEncoding" value="UTF-8"></property>
+        <!--配置模板引擎属性-->
+        <property name="templateEngine">
+            <!--配置内部bean-->
+            <bean class="org.thymeleaf.spring5.SpringTemplateEngine">
+                <!--配置模块的解析器属性-->
+                <property name="templateResolver">
+                    <!--配置内部bean-->
+                    <bean class="org.thymeleaf.spring5.templateresolver.SpringResourceTemplateResolver">
+                        <!--配置前缀  ★-->
+                        <property name="prefix" value="/WEB-INF/pages/"></property>
+                        <!--配置后缀  ★-->
+                        <property name="suffix" value=".html"></property>
+                        <!--配置字符集-->
+                        <property name="characterEncoding" value="UTF-8"></property>
+                    </bean>
+                </property>
+
+                <!--在templateResolver模块下，开始添加权限认证标签支持⚠️⚠️⚠️-->
+                <!-- 添加spring security 标签支持：sec -->
+                <property name="additionalDialects">
+                    <set>
+                        <bean class="org.thymeleaf.extras.springsecurity5.dialect.SpringSecurityDialect" />
+                    </set>
+                </property>
+               <!-- 添加完毕 -->
+              
+            </bean>
+        </property>
+    </bean>
+```
+
+
+
+#### 10.4.3.3页面按钮控制
+
+以角色管理role/indexx.html为例：
+
+使用标签：sec:authorize="hasAuthority('')"与controller层一一对应
+
+1、在html文件里面申明使用spring-security标签
+
+```html
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+```
+
+2、按钮上使用标签
+
+```html
+<button type="button" class="btn btn-sm btn-primary create" sec:authorize="hasAuthority('role.create')">新增</button>
+```
+
+```html
+<a class="edit" th:attr="data-id=${item.id}" sec:authorize="hasAuthority('role.edit')">修改</a>
+<a class="delete" th:attr="data-id=${item.id}" sec:authorize="hasAuthority('role.delete')">删除</a>
+<a class="assgin" th:attr="data-id=${item.id}" sec:authorize="hasAuthority('role.assgin')">分配权限</a>
+```
+
+3、完整代码
+
+```html
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:include="common/head :: head"></head>
+<body class="gray-bg">
+<!--查询角色的表单-->
+<form id="ec" th:action="@{/role}" method="post">
+    <div class="wrapper wrapper-content animated fadeInRight">
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="ibox float-e-margins">
+                    <div class="ibox-content">
+
+                        <!--搜索内容开始-->
+                        <table class="table form-table margin-bottom10">
+                            <tr>
+                                <td>
+                                    <!--搜索内容回显-->
+                                    <input type="text" name="roleName"
+                                           th:value="${#maps.containsKey(filters, 'roleName')} ? ${filters.roleName} : ''"
+                                           placeholder="角色名称" class="input-sm form-control"/>
+                                </td>
+                            </tr>
+                        </table>
+                        <div>
+                            <!--点击搜索按钮提交表单，并为表单项的页码参数pageNum赋值1-->
+                            <button type="button" class="btn btn-sm btn-primary"
+                                    onclick="javascript:document.forms.ec.pageNum.value=1;document.forms.ec.submit();">
+                                搜索
+                            </button>
+                            <button type="button" class="btn btn-sm btn-primary create" sec:authorize="hasAuthority('role.create')">新增</button>
+                            <button type="button" id="loading-example-btn"
+                                    onclick="javascript:window.location.reload();" class="btn btn-white btn-sm">刷新
+                            </button>
+                        </div>
+                        <!--搜索内容结束-->
+
+                        <table class="table table-striped table-bordered table-hover dataTables-example">
+                            <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>角色名称</th>
+                                <th>角色编码</th>
+                                <th>描述</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr class="gradeX" th:each="item,it : ${page.list}">
+                                <td class="text-center" th:text="${it.count}">11</td>
+                                <td th:text="${item.roleName}">22</td>
+                                <td th:text="${item.roleCode}">33</td>
+                                <td th:text="${item.description}">33</td>
+                                <td th:text="${#dates.format(item.createTime,'yyyy-MM-dd HH:mm:ss')}">33</td>
+                                <td class="text-center">
+                                    <a class="edit" th:attr="data-id=${item.id}" sec:authorize="hasAuthority('role.edit')">修改</a>
+                                    <a class="delete" th:attr="data-id=${item.id}" sec:authorize="hasAuthority('role.delete')">删除</a>
+                                    <a class="assgin" th:attr="data-id=${item.id}" sec:authorize="hasAuthority('role.assgin')">分配权限</a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <!--分页插件页码开始-->
+                        <div class="row" th:include="common/pagination :: pagination"></div>
+                        <!--分页插件页码结束-->
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+<!--在使用thymeleaf时，前端页面如要在javascript中获取后端传入的数据，需要使用<script th:inline="javascript">-->
+<script th:inline="javascript">
+    //弹出层事件
+    $(function () {
+        //新增
+        $(".create").on("click", function () {
+            opt.openWin("/role/create", "新增", 580, 430);
+        });
+        //修改
+        $(".edit").on("click", function () {
+            var id = $(this).attr("data-id");
+            opt.openWin('/role/edit/' + id, '修改', 580, 430);
+        });
+        //删除
+        $(".delete").on("click", function () {
+            var id = $(this).attr("data-id");
+            opt.confirm('/role/delete/' + id);
+        });
+        //分配权限
+        $(".assign").on("click",function () {
+            var id = $(this).attr("data-id");
+            opt.openWin("/role/assignShow/"+id,'修改',580,430);
+        });
+    });
+
+</script>
+</body>
+</html>
+```
+
