@@ -16932,3 +16932,330 @@ web_admin引入依赖
 </html>
 ```
 
+
+
+
+
+# 11 Session共享
+
+## 11.1业务介绍
+
+当前我们的服务都是单独部署，web-admin与web-front都使用了session保存当前用户信息，不存在session问题，在生成环境我们的服务都会集群部署多份，这时就会出现session问题，所以必须实现session共享。
+
+### 11.1.1Session共享方案
+
+session复制：
+
+- 应用服务器开启web容器的session复制功能，在集群中的几台服务器之间同步session对象，浪费内存。
+
+session绑定：
+
+- 利用hash算法，比如nginx的ip_hash,使得同一个Ip的请求分发到同一台服务器上。宕机就完了。
+
+利用cookie记录session：
+
+- session记录在客户端，每次请求服务器的时候，将session放在请求中发送给服务器，不安全。
+
+session服务器（推荐使用，本次主要讲解的内容）：
+
+- 利用独立部署的session服务器（集群）统一管理session，服务器每次读写session时，都访问session服务器。
+
+
+
+## 11.2共享原理
+
+### 11.2.1Session共享原理
+
+Session 共享实现的原理是将原来内存中的 Session 放在多个服务器（如Tomcat）都能访问到的位置，如数据库，Redis 中等，从而实现多实例 Session 共享。
+
+实现共享后，只要浏览器的 Cookie 中的 Session ID 没有改变，多个实例中的任意一个被销毁不会影响用户访问。
+
+
+
+### 11.2.2Spring Session共享原理
+
+当请求进来的时候，SessionRepositoryFilter 会先拦截到请求，将 request 和 response 对象转换成 SessionRepositoryRequestWrapper 和 SessionRepositoryResponseWrapper 。
+
+后续当第一次调用 request 的getSession方法时，会调用到 SessionRepositoryRequestWrapper 的`getSession`方法。这个方法是被重写过的，逻辑是先从 request 的属性中查找，如果找不到；再查找一个key值是"SESSION"的 Cookie，通过这个 Cookie 拿到 SessionId 去 Redis 中查找，如果查不到，就直接创建一个RedisSession 对象，同步到 Redis 中。
+
+总结：拦截请求，将之前在服务器内存中进行 Session 创建销毁的动作，改成在 Redis 中创建。
+
+
+
+## 11.3Spring Session集成
+
+查找步骤：浏览器会发送JSission和Sission到服务器，如果Jsission没找到，就会使用Sission去Redis中去查找！可以按F12查看浏览器请求数据来确认。⚠️
+
+### 11.3.1引入依赖
+
+shf_parent添加版本管理
+
+```xml
+<redis-session.version>1.3.5.RELEASE</redis-session.version>
+```
+
+```xml
+<!--spring-session 同步到redis-->
+<dependency>
+    <groupId>org.springframework.session</groupId>
+    <artifactId>spring-session-data-redis</artifactId>
+    <version>${redis-session.version}</version>
+</dependency>
+```
+
+web_front引入依赖
+
+```xml
+    <dependencies>
+        <!--spring-session 同步到redis-->
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-data-redis</artifactId>
+            <!--排除了两个jar包，我们用的是5版本的，而这两个spring相关jar包是4.2的，不兼容-->
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework</groupId>
+                    <artifactId>spring-aop</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.springframework</groupId>
+                    <artifactId>spring-context</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+```
+
+
+
+### 11.3.2添加配置
+
+spring/spring-redis.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+                         http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <!--Jedis连接池的相关配置-->
+    <bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+        <!--最大连接数, 默认8个-->
+        <property name="maxTotal" value="100"></property>
+        <!--最大空闲连接数, 默认8个-->
+        <property name="maxIdle" value="50"></property>
+        <!--允许借调 在获取连接的时候检查有效性, 默认false-->
+        <property name="testOnBorrow" value="true"/>
+        <!--允许归还 在return给pool时，是否提前进行validate操作-->
+        <property name="testOnReturn" value="true"/>
+    </bean>
+    <!--配置JedisConnectionFactory-->
+    <bean id="connectionFactory" class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory">
+        <property name="hostName" value="39.106.35.112"/>
+        <property name="password" value="abc123"/>
+        <property name="port" value="6379"/>
+        <property name="database" value="0"/>
+        <property name="poolConfig" ref="jedisPoolConfig"/>
+    </bean>
+    <!-- 配置session共享 -->
+    <bean id="redisHttpSessionConfiguration"
+          class="org.springframework.session.data.redis.config.annotation.web.http.RedisHttpSessionConfiguration">
+        <property name="maxInactiveIntervalInSeconds" value="600" />
+    </bean>
+</beans>
+```
+
+spring-mvc.xml引入配置
+
+```xml
+<!--加载Redis配置文件-->
+<import resource="spring-redis.xml"></import>
+```
+
+
+
+### 11.3.3添加session共享过滤器
+
+web.xml中添加过滤器
+
+该过滤器必须是第一个过滤器，所有的请求经过该过滤器后执行后续操作
+
+```xml
+<!-- spring session共享filter -->
+<!-- 该过滤器必须是第一个过滤器，所有的请求经过该过滤器后执行后续操作 -->
+<!-- 该过滤器不会影响处理POST中文乱码-->
+<filter>
+  <filter-name>springSessionRepositoryFilter</filter-name>
+  <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+</filter>
+<filter-mapping>
+  <filter-name>springSessionRepositoryFilter</filter-name>
+  <url-pattern>/*</url-pattern>
+</filter-mapping>
+```
+
+完整web.xml示例
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd"
+         version="4.0">
+
+    <!-- spring session共享filter -->
+    <!-- 该过滤器必须是第一个过滤器，所有的请求经过该过滤器后执行后续操作 -->
+    <!-- 该过滤器不会影响处理POST中文乱码-->
+    <filter>
+        <filter-name>springSessionRepositoryFilter</filter-name>
+        <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>springSessionRepositoryFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <!-- 解决post乱码 添加字符编码过滤器 -->
+    <filter>
+        <filter-name>encode</filter-name>
+        <filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+        <init-param>
+            <param-name>encoding</param-name>
+            <param-value>UTF-8</param-value>
+        </init-param>
+        <init-param>
+            <param-name>forceRequestEncoding</param-name>
+            <param-value>true</param-value>
+        </init-param>
+    </filter>
+    <filter-mapping>
+        <filter-name>encode</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <!-- 配置SpringMVC框架前端控制器 -->
+    <servlet>
+        <servlet-name>dispatcherServlet</servlet-name>
+        <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+        <init-param>
+            <param-name>contextConfigLocation</param-name>
+            <param-value>classpath:spring/spring-mvc.xml</param-value>
+        </init-param>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>dispatcherServlet</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+
+</web-app>
+```
+
+
+
+
+
+# 12 阶段性总结
+
+## 12.1web阶段
+
+- HTML+CSS
+
+  - 重点：能看懂、微调(Vue渲染+Thymeleaf渲染)
+
+- JS  ★
+
+  - 已经有java基础，变量、数组、对象、流程控制结构
+
+- Vue ★
+
+  - 经常出错，错误很哪找(去浏览器的控制台)
+  - 经常会出现浏览器缓存
+
+- Servlet
+
+  - 请求处理 ★
+  - 响应处理 ★
+  - 三个作用域对象 ★
+
+- Thymeleaf ★
+
+  - 服务器渲染的工具，替代之前的jsp
+
+- Cookie和Session ★
+
+- AJAX ★★★
+
+  - JS
+  - Vue ☆
+  - jQuery
+
+- Filter和Listener
+
+  - 会配置过滤器就可以
+
+  
+
+## 12.2SSM框架阶段
+
+### 12.2.1MyBatis
+
+- MyBatis的框架搭建
+  - 核心配置文件
+    - 所有的配置都可以被Spring所取代，暂时还保留了一些
+  - 映射文件 ★★★
+- 动态sql ★
+  - where/if/set/sql
+- 缓存机制
+- 分页插件 ★
+
+
+
+### 12.2.2Spring
+
+- IOC ★★★
+
+  - 将MyBatis的dao层对象都放在ioc容器内了
+  - 但凡遇到一些对象，先把他放在ioc容器内，哪里用，哪里就进行注入(自动装配)
+  - bean标签  ★
+  - set注入  ★
+  - 四个创建对象的注解 ★
+  - 自动装配 ★
+
+- AOP ★★★
+
+  - 面向切面编程
+    - 将非核心业务提取出来，随时添加，随时拿走！不需要修改核心业务代码
+  - 在声明式事务使用
+
+  
+
+### 12.2.3SpringMVC
+
+- SpringMVC的HelloWorld
+  - 前端控制器 ★
+  - Controller ★
+
+- 设置请求路径(访问路径、虚拟路径) ★
+- 处理请求数据 ★
+- 处理响应数据 ★
+- SpringMVC的运行流程（1）
+- 处理JSON ★
+  - 主要针对的是异步请求
+
+- 文件的上传下载
+- 拦截器 ★
+- 异常处理
+- SpringMVC的运行流程（2）
+
+
+
+## 12.3项目阶段
+
+练习SSM的使用
+
+- 请求可能出现问题
+- 业务层业务处理可能出现问题
+- 持久层操作数据库可能出现问题
+

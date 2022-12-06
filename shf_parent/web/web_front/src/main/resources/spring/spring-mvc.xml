@@ -9,6 +9,9 @@
     <!--其实可以将spring-registry.xml内容都写在该文件内，不过不方便维护-->
     <import resource="spring-registry.xml"/>
 
+    <!--加载Redis配置文件-->
+    <import resource="spring-redis.xml"></import>
+
     <!--controller包的注解扫描-->
     <context:component-scan base-package="com.atguigu.controller"/>
 

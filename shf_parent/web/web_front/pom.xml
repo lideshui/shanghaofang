@@ -15,6 +15,24 @@
     <!--设置打包方式为war包-->
     <packaging>war</packaging>
 
+    <dependencies>
+        <!--spring-session 同步到redis-->
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-data-redis</artifactId>
+            <!--排除了两个jar包，我们用的是5版本的，而这两个spring相关jar包是4.2的，不兼容-->
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework</groupId>
+                    <artifactId>spring-aop</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.springframework</groupId>
+                    <artifactId>spring-context</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
 
     <!--设置服务器jetty的参数，以Maven的插件形式存在-->
     <build>
