@@ -87,7 +87,6 @@
         where id=#{id}
     </update>
 
-
     <!--删除-->
     <update id="delete">
         update acl_admin set
@@ -96,4 +95,8 @@
         id = #{id}
     </update>
 
+    <!--后台登录验证，根据用户名获取用户信息-->
+    <select id="findAdminByUsername" resultType="Admin">
+        select * from acl_admin where username=#{username} and is_deleted=0
+    </select>
 </mapper>

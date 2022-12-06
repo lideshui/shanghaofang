@@ -8,6 +8,8 @@ import com.atguigu.service.RoleService;
 import com.atguigu.util.QiniuUtil;
 import com.github.pagehelper.PageInfo;
 import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,6 +48,10 @@ public class AdminController extends BaseController {
     @DubboReference
     private AdminRoleService adminRoleService;
 
+    //security提供的加密对象，在WebSecurityConfig中放入到IoC容器里了，所以可以自动装配
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
 
     /**
      * 处理/请求，跳转到index页，搜索处理、分页处理
@@ -78,6 +84,8 @@ public class AdminController extends BaseController {
      */
     @RequestMapping("/save")
     public String save(Admin admin) {
+        //使用security提供的加密对象对密码进行加密
+        admin.setPassword(passwordEncoder.encode(admin.getPassword()));
         adminService.insert(admin);
         return PAGE_SUCCESS;
     }

@@ -15751,3 +15751,545 @@ public class PermissionController {
 
 
 
+
+
+# 10 Spring Security
+
+## 10.1Spring Security简介
+
+前面我们已经完成了尚好房权限管理的部分相关功能，给用户分配角色，给角色分配权限，及左侧动态菜单，做好权限管理的数据准备，接下来我们要使用这些数据进行权限的相关控制。
+
+- 认证：系统提供的用于识别用户身份的功能，通常提供用户名和密码进行登录其实就是在进行认证，认证的目的是让系统知道你是谁。
+
+- 授权：用户认证成功后，需要为用户授权，其实就是指定当前用户可以操作哪些功能。
+
+
+本章节就是要对后台系统进行权限控制，其本质就是对用户进行认证和授权。
+
+Spring Security是 Spring提供的安全认证服务的框架。 使用Spring Security可以帮助我们来简化认证和授权的过程。
+
+官网：https://spring.io/projects/spring-security/  
+
+中文官网：https://www.w3cschool.cn/springsecurity/ 
+
+
+
+## 10.2Spring Security集成与入门
+
+### 10.2.1引入依赖
+
+shf_parent父工程的pom.xml中添加版本管理
+
+```xml
+<spring.security.version>5.4.10</spring.security.version>
+```
+
+```xml
+<!-- spring security安全框架 -->
+<dependency>
+    <groupId>org.springframework.security</groupId>
+    <artifactId>spring-security-web</artifactId>
+    <version>${spring.security.version}</version>
+</dependency>
+<dependency>
+    <groupId>org.springframework.security</groupId>
+    <artifactId>spring-security-config</artifactId>
+    <version>${spring.security.version}</version>
+</dependency>
+```
+
+web_admin模块中引入依赖
+
+```xml
+<!-- spring security安全框架 -->
+<dependency>
+    <groupId>org.springframework.security</groupId>
+    <artifactId>spring-security-web</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.security</groupId>
+    <artifactId>spring-security-config</artifactId>
+</dependency>
+```
+
+
+
+### 10.2.2配置SpringSecurityFilter
+
+web_admin模块的web.xml文件中配置代理过滤器
+
+```xml
+<!-- SpringSecurity Filter -->
+<!-- DelegatingFilterProxy用于整合第三方框架（代理过滤器，非真正的过滤器，真正的过滤器需要在spring的配置文件） -->
+<filter>
+  <filter-name>springSecurityFilterChain</filter-name>
+  <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+</filter>
+<filter-mapping>
+  <filter-name>springSecurityFilterChain</filter-name>
+  <url-pattern>/*</url-pattern>
+</filter-mapping>
+```
+
+
+
+### 10.2.3配置Spring Security
+
+配置Spring Security有两种方式：
+
+​	1、xml文件配置
+
+​	2、java类配置
+
+两种方式配置效果一致，当前我们使用java类配置，更加简洁，现在先创建java类WebSecurityConfig
+
+注意：该配置类也需要被扫描⚠️
+
+```java
+package com.atguigu.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+
+//标记该类是配置类
+@Configuration
+//@EnableWebSecurity是开启SpringSecurity的默认行为
+@EnableWebSecurity 
+public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+
+}
+```
+
+
+
+### 10.2.4修改扫描器
+
+扫描WebSecurityConfig类
+
+```xml
+<!--包的注解扫描-->
+<context:component-scan base-package="com.atguigu"/>
+```
+
+
+
+### 10.2.5添加配置
+
+内存分配用户名密码（包括静态资源在内的所有访问资源受限⚠️）、设置加密方式（必须设置）、设置允许iframe嵌套显示
+
+```java
+package com.atguigu.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+//标记该类是配置类
+@Configuration
+//@EnableWebSecurity是开启SpringSecurity的默认行为
+@EnableWebSecurity
+public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+
+    /**
+     * 内存中分配登录的用户名密码
+     * Security已经开始工作，未认证的话，去到登录页面(springSecurity默认提供的)
+     */
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        //对于密码来说，必须要求加密(指定加密方式)
+        //不设置加密方式的报错：springSecurity There is no PasswordEncoder mapped for the id "null"
+        auth.inMemoryAuthentication()
+                .withUser("admin")
+                .password(new BCryptPasswordEncoder().encode("123456"))
+                .roles("");
+    }
+
+
+    /**
+     * 设置加密方式，必须指定加密方式，上下加密方式要一致⚠️
+     * Bean注解是将这个方法的返回值对象装配到IoC容器，为了注册的时候可以从IoC容器内获取到这个对象进行加密
+     */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+
+    /**
+     * 设置允许iframe嵌套显示，默认Spring Security不允许iframe嵌套显示
+     */
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        //必须调用父类的方法，否则就不需要认证即可访问
+        super.configure(http);
+        //允许iframe嵌套显示（iframe中还有iframe）
+        //http.headers().frameOptions().disable();
+        //允许iframe显示
+        http.headers().frameOptions().sameOrigin();
+    }
+
+}
+```
+
+
+
+## 10.3Spring Security集成进阶
+
+### 10.3.1登录基础设置
+
+自己配置SpringSecurity，配置登录、退出和跨域等配置
+
+```java
+package com.atguigu.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+//标记该类是配置类
+@Configuration
+//@EnableWebSecurity是开启SpringSecurity的默认行为
+@EnableWebSecurity
+public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+
+    /**
+     * 设置加密方式，必须指定加密方式，上下加密方式要一致
+     * Bean注解是将这个方法的返回值对象装配到IoC容器，为了注册的时候可以从IoC容器内获取到这个对象进行加密
+     */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+
+    /**
+     * 设置允许iframe嵌套显示，默认Spring Security不允许iframe嵌套显示
+     * 可自己配置SpringSecurity，配置登出、登入等设置
+     */
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+
+        //不再需要父级的方法，自己配置SpringSecurity
+        //super.configure(http);
+
+        //设置允许iframe进行嵌套
+        http.headers().frameOptions().disable();
+
+        //and()方法返回的是http对象本身⚠️
+        //设置不需要认证就可以访问的路径(所有的静态资源、/login)
+        http.authorizeRequests()
+                // 允许匿名访问的路径
+                .antMatchers("/static/**","/login").permitAll()
+                //其他的请求都需要认证
+                .anyRequest().authenticated();
+
+        //设置登录
+        http.formLogin()
+                //设置自己的登录页面，不再使用SpringSecurity默认提供的
+                //未登录时，访问哪个路径都跳转到这里
+                .loginPage("/login")
+                //登录认证成功后默认转跳的路径
+                .defaultSuccessUrl("/");
+
+        //设置退出
+        http.logout()
+                //退出登陆的路径，指定spring security拦截的注销url
+                //退出功能是security提供的
+                .logoutUrl("/logout")
+                //用户退出后要被重定向的url
+                .logoutSuccessUrl("/login");
+
+        //跨域设置
+        http.csrf()
+                //需要将跨域请求关闭，不然请求不到/login无法退出
+                .disable();
+    }
+
+}
+
+
+```
+
+
+
+### 10.3.2定义登录页面
+
+创建frame/login.html文件，说明如下：
+
+1. Spring Security登录的默认用户名密码字段为：username、password，默认提交请求地址：/login，这样我们都不要去更改，如果更改的话需在上面的配置方法中更改。
+
+2. 用户名密码错误url会错误标识：error，可用作提示信息
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:include="common/head :: head"></head>
+
+<body class="gray-bg">
+
+<div class="middle-box text-center loginscreen  animated fadeInDown">
+    <div>
+        <div>
+
+            <h1 class="logo-name">房</h1>
+
+        </div>
+        <h3>欢迎使用 尚好房平台管理系统</h3>
+
+        <form class="m-t" role="form" th:action="@{/login}" method="post">
+            <label style="color:red;" th:if="${param.error}" th:text="用户名或密码错误"></label>
+            <div class="form-group">
+                <input type="text" name="username" value="" class="form-control" placeholder="用户名" required="">
+            </div>
+            <div class="form-group">
+                <input type="password" name="password" value="" class="form-control" placeholder="密码" required="">
+            </div>
+            <button type="submit" class="btn btn-primary block full-width m-b">登 录</button>
+
+
+            <p class="text-muted text-center"> <a href="javascript:"><small>忘记密码了？</small></a> | <a href="javascript:">注册一个新账号</a>
+            </p>
+
+        </form>
+    </div>
+</div>
+
+</body>
+
+</html>
+```
+
+IndexController中添加SpringSecurity中设置的 `/login` 登录路径
+
+```java
+    private final static String PAGE_LOGIN = "frame/login";
+
+		/**
+     * 控制SpringSecurity中设置的登录请求/login所去的页面
+     */
+    @RequestMapping("/login")
+    public String login(){
+        return PAGE_LOGIN;
+    }
+```
+
+
+
+### 10.3.3获取用户信息
+
+#### 10.3.3.1ServiceAPI
+
+AdminService添加内容
+
+```java
+    /**
+     * 后台登录验证，根据用户名获取用户信息
+     */
+    Admin findAdminByUsername(String username);
+```
+
+
+
+#### 10.3.3.2dao层
+
+AdminDao添加内容
+
+```java
+    /**
+     * 后台登录验证，根据用户名获取用户信息
+     */
+    Admin findAdminByUsername(String username);
+```
+
+AdminMapper添加内容
+
+```xml
+<!--后台登录验证，根据用户名获取用户信息-->
+<select id="findAdminByUsername" resultType="Admin">
+    select * from acl_admin where username=#{username} and is_deleted=0
+</select>
+```
+
+
+
+#### 10.3.3.3service层
+
+AdminServiceImpl添加内容
+
+```java
+    /**
+     * 后台登录验证，根据用户名获取用户信息
+     */
+    @Override
+    public Admin findAdminByUsername(String username) {
+        return adminDao.findAdminByUsername(username);
+    }
+```
+
+
+
+### 10.3.4UserDetailsService接口
+
+Spring Security支持通过实现UserDetailsService接口的方式来提供用户认证授权信息
+
+#### 10.3.4.1创建接口实现类
+
+在web_admin模块中创建UserDetailsServiceImpl类，实现UserDetailsService接口
+
+```java
+package com.atguigu.service;
+
+import com.atguigu.entity.Admin;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Component;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.service.UserDetailsServiceImpl
+ */
+@Component
+public class UserDetailsServiceImpl implements UserDetailsService {
+
+    @DubboReference
+    private AdminService adminService;
+
+    /**
+     * SpringSecurity在验证用户名和密码的时，默认调用UserDetailsService的loadUserByUsername方法
+     * 我们选择重写，调用的就是重写之后的
+     * username就是在登录页面输入的用户名
+     */
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        System.out.println("用户输入的用户名：" + username);
+        //1. 通过用户名去数据查询Admin对象回来
+        Admin admin = adminService.findAdminByUsername(username);
+        //2. 如果对象有值，说明用户名是对的，然后在让SpringSecurity去完成密码的校验(有加密)
+        if (admin == null) {
+            //如果没有查到对应的实例，说明用户名不存在
+            throw new UsernameNotFoundException("用户名不存在！");
+        }
+        //若用户存在，则开始校验密码。admin.getPassword()就是从数据库查询回来的密码--> 必须是加密的密码
+      	//无论用户实例是什么对象，都会根据对象的参数返回SpringSecurity提供的User对象，即当前登录对象的加工后的认证对象
+        return new User(username, admin.getPassword(),
+                AuthorityUtils.commaSeparatedStringToAuthorityList(""));
+    }
+}
+```
+
+
+
+#### 10.3.4.1改造添加用户加密
+
+前面添加用户是我们没有对密码进行加密处理，现在改造。删除未加密的数据记录，重新创建用户信息
+
+修改AdminController类save方法
+
+```java
+    //security提供的加密对象，在WebSecurityConfig中放入到IoC容器里了，所以可以自动装配
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    /**
+     * 处理/save请求，执行添加资源操作
+     */
+    @RequestMapping("/save")
+    public String save(Admin admin) {
+        //使用security提供的加密对象对密码进行加密
+        admin.setPassword(passwordEncoder.encode(admin.getPassword()));
+        adminService.insert(admin);
+        return PAGE_SUCCESS;
+    }
+```
+
+
+
+### 10.3.5获取当前登录用户
+
+#### 10.3.5.1获取用户信息
+
+注意：User为：org.springframework.security.core.userdetails.User，叫User的类比较多，导包千万别导错了⚠️
+
+```java
+Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+User user = (User)authentication.getPrincipal();
+```
+
+返回的信息是当前登录对象的加工后的认证对象，格式如下
+
+```java
+{
+    "accountNonExpired": true,
+    "accountNonLocked": true,
+    "authorities": [],
+    "credentialsNonExpired": true,
+    "enabled": true,
+    "username": "admin"
+}
+```
+
+
+
+#### 10.3.5.2封装获取信息方法
+
+我们可以定义一个controller方法，获取当前用户信息，便于获取。
+
+```java
+/**
+ * 获取当前登录信息
+ * @return
+ */
+@RequestMapping("/getInfo")
+@ResponseBody
+public Object getInfo() {
+  	//可以返回当前登录对象的加工后的认证对象，也可以返回登录对象或封装了信息的Map集合，看需求
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    return authentication.getPrincipal();
+}
+```
+
+
+
+### 10.3.6左侧菜单动态获取权限
+
+之前获取左侧菜单我们是写死了的，目前可以动态获取当前用户了
+
+IndexController修改内容
+
+```java
+/**
+ * 后台首页
+ */
+@RequestMapping("/")
+public String index(Map map) {
+    //获取SpringSecurity提供的User对象，即当前登录对象的加工后的认证对象
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    User user = (User)authentication.getPrincipal();
+
+    //通过认证对象的用户名获取现在登录的Admin对象
+    Admin admin = adminService.findAdminByUsername(user.getUsername());
+    map.put("admin", admin);
+
+    //根据当前登录对象Id寻找对应的权限菜单，放到请求域根据登录用户的权限进行左侧菜单动态渲染
+    List<Permission> permissionList = permissionService.findPermissionByAdminId(admin.getId());
+    map.put("permissionList",permissionList);
+
+    return PAGE_INDEX;
+}
+```
+

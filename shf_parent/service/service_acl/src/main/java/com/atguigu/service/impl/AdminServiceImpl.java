@@ -23,4 +23,11 @@ public class AdminServiceImpl extends BaseServiceImpl<Admin> implements AdminSer
         return adminDao;
     }
 
+    /**
+     * 后台登录验证，根据用户名获取用户信息
+     */
+    @Override
+    public Admin findAdminByUsername(String username) {
+        return adminDao.findAdminByUsername(username);
+    }
 }
