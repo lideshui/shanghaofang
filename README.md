@@ -15262,3 +15262,492 @@ IndexController修改内容
     }
 ```
 
+
+
+## 9.4菜单管理
+
+### 9.4.1准备web资源
+
+#### 9.4.1.1index页面
+
+permission/index.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:include="common/head :: head"></head>
+
+<body class="gray-bg">
+<form id="ec" action="#" method="post">
+    <div class="wrapper wrapper-content animated fadeInRight">
+
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="ibox float-e-margins">
+                    <div class="ibox-content">
+                        <div>
+                            <button type="button" class="btn btn-sm btn-primary create"
+                                    th:attr="data-id=0,data-type=1,data-name='一级菜单'">新增一级菜单
+                            </button>
+                            <button type="button" id="loading-example-btn"
+                                    onclick="javascript:window.location.reload();" class="btn btn-white btn-sm">刷新
+                            </button>
+                        </div>
+
+
+                        <table class="table table-striped table-bordered table-hover dataTables-example">
+                            <thead>
+                            <tr>
+                                <th>权限名称</th>
+                                <th>菜单url</th>
+                                <th>权限标识</th>
+                                <th>类型</th>
+                                <th>排序</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                            </thead>
+                            <!--定义变量记录循环次数-->
+                            <tbody th:with="flag=0">
+
+                            <!--定义迭代渲染的模板，以及模板形参-->
+                            <th:block th:fragment="row(list)">
+
+                                <!--循环数据-->
+                                <div th:each="one: ${list}" th:with="flag = ${flag} + 1">
+                                    <tr class="gradeX">
+                                        <td><span th:style="${'padding-left:' + 20 * (flag - 1) + 'px'}"
+                                                  th:text="${one.name}">22</span></td>
+                                        <td th:text="${one.url}">33</td>
+                                        <td th:text="${one.code}">22</td>
+                                        <td>
+                                            <strong><span th:if="${one.type } eq 1"
+                                                          style="color: blue">菜单</span></strong>
+                                            <strong><span th:if="${one.type } eq 2">按钮</span></strong>
+                                        </td>
+                                        <td th:text="${one.sort}">22</td>
+                                        <td th:text="${#dates.format(one.createTime,'yyyy-MM-dd HH:mm:ss')}">33</td>
+                                        <td class="text-center">
+                                            <!--如果是一级菜单可以执行的操作-->
+                                            <a th:if="${flag == 1}" class="create"
+                                               th:attr="data-id=${one.id},data-type=1,data-name=${one.name}">
+                                                新增二级菜单
+                                            </a>
+                                            <!--如果是二级菜单可以执行的操作-->
+                                            <a th:if="${flag == 2}" class="create"
+                                               th:attr="data-id=${one.id},data-type=2,data-name=${one.name}">
+                                                新增功能按钮
+                                            </a>
+                                            <!--都可以执行的操作-->
+                                            <a class="edit" th:attr="data-id=${one.id}">修改</a>
+                                            <a class="delete" th:attr="data-id=${one.id}">删除</a>
+                                        </td>
+                                    </tr>
+
+                                    <!--判断循环的数据是否有子节点-->
+                                    <div th:if="${#lists.size(one.children) > 0}">
+                                        <!--有子节点传入继续循环-->
+                                        <div th:include="this::row(${one.children})"/>
+                                    </div>
+                                </div>
+
+                            </th:block>
+
+                            <!--使用this调用本页面的模板，传入实参，开启迭代-->
+                            <div th:include="this::row(${list})"/>
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+<script th:inline="javascript">
+    $(function () {
+        //新增一级、二级、按钮都是触发这个单击事件
+        $(".create").on("click", function () {
+            //新增内容父级id
+            var parentId = $(this).attr("data-id");
+            //一级二级type是1表示菜单，三级type是2表示按钮
+            var type = $(this).attr("data-type");
+            //新增内容父级名称
+            var parentName = $(this).attr("data-name");
+            opt.openWin('/permission/create?parentId=' + parentId + '&type=' + type + '&parentName=' + parentName, '新增', 630, 430)
+        });
+        $(".edit").on("click", function () {
+            var id = $(this).attr("data-id");
+            opt.openWin('/permission/edit/' + id, '修改', 580, 430);
+        });
+        $(".delete").on("click", function () {
+            var id = $(this).attr("data-id");
+            opt.confirm('/permission/delete/' + id);
+        });
+    });
+</script>
+</body>
+</html>
+```
+
+
+
+#### 9.4.1.2create页面
+
+permission/create.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<script type="text/javascript">
+    $(function(){
+        $('#ec').validate({
+            rules:{
+                name:"required"
+            },
+            messages:{
+                name:"权限名称必须输入"
+            },
+            submitHandler: function(form) {
+                $(form).find(":submit").attr("disabled", true).text("正在提交...");
+                form.submit();
+            }
+        });
+    });
+</script>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/permission/save}" method="post" class="form-horizontal">
+                <input type="hidden" name="parentId" th:value="${permission.parentId}"/>
+                <input type="hidden" name="type" th:value="${permission.type}"/>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">上级权限：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="parentName" id="parentName" th:value="${permission.parentName}" disabled="disabled" class="form-control"/>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">权限名称：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="name" id="name" value="" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group" th:if="${permission.type == 1}">
+                    <label class="col-sm-2 control-label">菜单url：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="url" id="url" class="form-control" style="width:100%;height: 50px;" ></input>
+                    </div>
+                </div>
+                <div class="hr-line-dashed" th:if="${permission.type == 1}"></div>
+
+                <div class="form-group" th:if="${permission.type == 2}">
+                    <label class="col-sm-2 control-label">权限值：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="code" id="code" class="form-control" style="width:100%;height: 50px;" ></input>
+                    </div>
+                </div>
+                <div class="hr-line-dashed" th:if="${permission.type == 2}"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">排序：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="sort" id="sort" value="1" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group posf">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button></div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+#### 9.4.1.3edit页面
+
+permission/edit.html
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:include="common/head :: head"></head>
+<script type="text/javascript">
+    $(function(){
+        $('#ec').validate({
+            rules:{
+                name:"required"
+            },
+            messages:{
+                name:"权限名称必须输入"
+            },
+            submitHandler: function(form) {
+                $(form).find(":submit").attr("disabled", true).text("正在提交...");
+                form.submit();
+            }
+        });
+    });
+</script>
+<body class="gray-bg">
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="ibox float-e-margins">
+        <div class="ibox-content" style="width: 98%;">
+            <form id="ec" th:action="@{/permission/update}" method="post" class="form-horizontal">
+                <input type="hidden" name="id" th:value="${permission.id}">
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">权限名称：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="name" id="name" th:value="${permission.name}" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group" th:if="${permission.type == 1}">
+                    <label class="col-sm-2 control-label">菜单url：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="url" id="url" th:value="${permission.url}" class="form-control" style="width:100%;height: 50px;" ></input>
+                    </div>
+                </div>
+                <div class="hr-line-dashed" th:if="${permission.type == 1}"></div>
+                <div class="form-group" th:if="${permission.type == 2}">
+                    <label class="col-sm-2 control-label">权限值：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="code" id="code" th:value="${permission.code}" class="form-control" style="width:100%;height: 50px;" ></input>
+                    </div>
+                </div>
+                <div class="hr-line-dashed" th:if="${permission.type == 2}"></div>
+                <div class="form-group">
+                    <label class="col-sm-2 control-label">排序：</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="sort" id="sort" th:value="${permission.sort}" class="form-control"/>
+                    </div>
+                </div>
+                <div class="hr-line-dashed"></div>
+                <div class="form-group posf">
+                    <div class="col-sm-4 col-sm-offset-2 text-right">
+                        <button class="btn btn-primary" type="submit">确定</button>
+                        <button class="btn btn-white" type="button" onclick="javascript:opt.closeWin();" value="取消">取消</button></div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+```
+
+
+
+### 9.4.2准备后端资源
+
+#### 9.4.2.1ServiceAPI
+
+PermissionService添加内容
+
+```java
+    /**
+     * 获取菜单的全部数据
+     */
+    List<Permission> findAll();
+```
+
+
+
+#### 9.4.2.2dao层
+
+PermissionDao添加内容
+
+```java
+    /**
+     * 获取自己的子节点列表
+     */
+    List<Permission> findPermissionByParentId(Serializable parentId);
+```
+
+PermissionMapper添加内容
+
+```xml
+    <!--插入实例-->
+    <insert id="insert">
+        insert into acl_permission(parent_Id,type,name,url,code,sort)
+        values(#{parentId},#{type},#{name},#{url},#{code},#{sort})
+    </insert>
+
+    <!--根据id获取实例，用作修改时数据回显-->
+    <select id="getById" resultType="permission">
+        select * from acl_permission where id=#{id} and is_deleted=0
+    </select>
+
+    <!--修改实例-->
+    <update id="update">
+        update acl_permission
+        <set>
+            <if test="name!=null and name!=''">
+                name=#{name},
+            </if>
+            <if test="url!=null and url!=''">
+                url=#{url},
+            </if>
+            <if test="code!=null and code!=''">
+                code=#{code},
+            </if>
+            <if test="sort!=null and sort!=''">
+                sort=#{sort},
+            </if>
+        </set>
+        where id=#{id}
+    </update>
+
+    <!--通过id获取子节点，迭代删除时使用-->
+    <select id="findPermissionByParentId" resultType="permission">
+        select * from acl_permission where parent_id=#{parentId} and is_deleted=0
+    </select>
+
+    <!--逻辑删除实例-->
+    <update id="delete">
+        update acl_permission set is_deleted=1 where id=#{id}
+    </update>
+```
+
+
+
+#### 9.4.2.3service层
+
+PermissionServiceImpl添加内容
+
+```java
+    /**
+     * 获取所有的权限菜单节点，并通过PermissionHelper类递归来处理分级关系
+     */
+    @Override
+    public List<Permission> findAll() {
+        List<Permission> list = permissionDao.findAll();
+        return PermissionHelper.bulid(list);
+    }
+
+    /**
+     * 重写基类中的删除方法，递归删除节点和其所有子节点
+     */
+    @Override
+    public void delete(Serializable id) {
+        //获取自己的子节点，递归删除
+        List<Permission> permissionList = permissionDao.findPermissionByParentId(id);
+        //判断有无子节点，若有子节点则进行递归删除
+        if(permissionList!=null && permissionList.size()!=0){
+            //迭代递归删除子节点
+            for (Permission permission : permissionList) {
+                delete(permission.getId());
+            }
+        }
+        //删除子节点后，再删除自身节点
+        permissionDao.delete(id);
+    }
+```
+
+
+
+#### 9.4.2.4controller层
+
+PermissionController
+
+```java
+package com.atguigu.controller;
+
+import com.atguigu.entity.Permission;
+import com.atguigu.service.PermissionService;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @Description: TODD
+ * @AllClassName: com.atguigu.controller.PermissionController
+ */
+@Controller
+@RequestMapping("/permission")
+public class PermissionController {
+
+
+    @DubboReference
+    private PermissionService permissionService;
+
+    private final static String LIST_ACTION = "redirect:/permission";
+    private final static String PAGE_INDEX = "permission/index";
+    private final static String PAGE_CREATE = "permission/create";
+    private final static String PAGE_EDIT = "permission/edit";
+    private final static String PAGE_SUCCESS = "common/success";
+
+
+    /**
+     * 获取菜单
+     */
+    @RequestMapping
+    public String index(Map map){
+        List<Permission> list = permissionService.findAll();
+        map.put("list",list);
+        return PAGE_INDEX;
+    }
+
+    /**
+     * 处理/create请求，跳转到新增页面
+     */
+    @RequestMapping("/create")
+    public String create(Permission permission,Map map){
+        map.put("permission",permission);
+        return PAGE_CREATE;
+    }
+
+    /**
+     * 处理/save请求，保存新增
+     */
+    @RequestMapping("/save")
+    public String save(Permission permission){
+        permissionService.insert(permission);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * 处理/edit/id操作，跳转到编辑页面
+     */
+    @RequestMapping("/edit/{permissionId}")
+    public String edit(@PathVariable Long permissionId, Map map){
+        Permission permission = permissionService.getById(permissionId);
+        map.put("permission",permission);
+        return PAGE_EDIT;
+    }
+
+    /**
+     * 处理/update请求，保存更新
+     */
+    @RequestMapping("/update")
+    public String update(Permission permission){
+        permissionService.update(permission);
+        return PAGE_SUCCESS;
+    }
+
+    /**
+     * 处理/delete/id请求，删除操作
+     */
+    @RequestMapping("/delete/{permissionId}")
+    public String delete(@PathVariable Long permissionId){
+        permissionService.delete(permissionId);
+        return LIST_ACTION;
+    }
+}
+```
+
+
+

@@ -8,6 +8,8 @@ import com.atguigu.service.PermissionService;
 import com.atguigu.util.PermissionHelper;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -71,5 +73,32 @@ public class PermissionServiceImpl extends BaseServiceImpl<Permission> implement
         //permissionList所有的菜单信息，需要借助PermissionHelper处理其分级关系
         List<Permission> permissionList1 = PermissionHelper.bulid(permissionList);
         return permissionList1;
+    }
+
+    /**
+     * 获取所有的权限菜单节点，并通过PermissionHelper类递归来处理分级关系
+     */
+    @Override
+    public List<Permission> findAll() {
+        List<Permission> list = permissionDao.findAll();
+        return PermissionHelper.bulid(list);
+    }
+
+    /**
+     * 重写基类中的删除方法，递归删除节点和其所有子节点
+     */
+    @Override
+    public void delete(Serializable id) {
+        //获取自己的子节点，递归删除
+        List<Permission> permissionList = permissionDao.findPermissionByParentId(id);
+        //判断有无子节点，若有子节点则进行递归删除
+        if(permissionList!=null && permissionList.size()!=0){
+            //迭代递归删除子节点
+            for (Permission permission : permissionList) {
+                delete(permission.getId());
+            }
+        }
+        //删除子节点后，再删除自身节点
+        permissionDao.delete(id);
     }
 }

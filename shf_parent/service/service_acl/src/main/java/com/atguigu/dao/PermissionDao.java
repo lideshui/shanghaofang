@@ -1,6 +1,8 @@
 package com.atguigu.dao;
 
 import com.atguigu.entity.Permission;
+
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -17,4 +19,9 @@ public interface PermissionDao extends BaseDao<Permission> {
      * 获取当前用户的权限菜单，然后循环渲染
      */
     List<Permission> findPermissionByAdminId(Long adminId);
+
+    /**
+     * 获取自己的子节点列表
+     */
+    List<Permission> findPermissionByParentId(Serializable parentId);
 }

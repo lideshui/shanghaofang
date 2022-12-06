@@ -21,4 +21,45 @@
         AND arp.`is_deleted`=0
         AND ap.`is_deleted`=0
     </select>
+
+    <!--插入实例-->
+    <insert id="insert">
+        insert into acl_permission(parent_Id,type,name,url,code,sort)
+        values(#{parentId},#{type},#{name},#{url},#{code},#{sort})
+    </insert>
+
+    <!--根据id获取实例，用作修改时数据回显-->
+    <select id="getById" resultType="permission">
+        select * from acl_permission where id=#{id} and is_deleted=0
+    </select>
+
+    <!--修改实例-->
+    <update id="update">
+        update acl_permission
+        <set>
+            <if test="name!=null and name!=''">
+                name=#{name},
+            </if>
+            <if test="url!=null and url!=''">
+                url=#{url},
+            </if>
+            <if test="code!=null and code!=''">
+                code=#{code},
+            </if>
+            <if test="sort!=null and sort!=''">
+                sort=#{sort},
+            </if>
+        </set>
+        where id=#{id}
+    </update>
+
+    <!--通过id获取子节点，迭代删除时使用-->
+    <select id="findPermissionByParentId" resultType="permission">
+        select * from acl_permission where parent_id=#{parentId} and is_deleted=0
+    </select>
+
+    <!--逻辑删除实例-->
+    <update id="delete">
+        update acl_permission set is_deleted=1 where id=#{id}
+    </update>
 </mapper>

@@ -20,4 +20,9 @@ public interface PermissionService extends BaseService<Permission> {
      * 获取当前用户的菜单权限，获取后循环渲染
      */
     List<Permission> findPermissionByAdminId(Long adminId);
+
+    /**
+     * 获取菜单的全部数据
+     */
+    List<Permission> findAll();
 }
